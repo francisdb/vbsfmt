@@ -366,7 +366,7 @@ fn replace_vbscript_code(
             new_line += &line[last_index..];
             *line = new_line;
         } else {
-            *line = search_string.replace_all(&line, replace_string).to_string()
+            *line = search_string.replace_all(line, replace_string).to_string()
         };
     }
     lines.join("\n")
