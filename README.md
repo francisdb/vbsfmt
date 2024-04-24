@@ -2,6 +2,6 @@
 
 VBScript standard formatter
 
-## Acknowledgements
+## Attributions
 
-This is a port of https://gitlab.com/PDStig/vpin-workshop-code-formatter
+This started as a port of https://gitlab.com/PDStig/vpin-workshop-code-formatter
