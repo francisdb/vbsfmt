@@ -1,0 +1,2 @@
+# vbsfmt
+VBScript standard formatter
