@@ -738,7 +738,7 @@ mod tests {
     fn test_capitalize_keywords_for() {
         let input = "FOr";
         let expected = "For";
-        let actual = capitalize_keywords(&input);
+        let actual = capitalize_keywords(input);
         assert_eq!(expected, actual);
     }
 
