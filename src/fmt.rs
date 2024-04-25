@@ -536,7 +536,6 @@ fn remove_chained_code(vbscript_code: &str) -> String {
                             return segment;
                         }
 
-                        segment = segment.to_ascii_lowercase().replace(")then ", ") Then ");
                         let then_index = segment.to_ascii_lowercase().find(" then ");
                         if let Some(then_index) = then_index {
                             let first_part = &segment[..then_index + 5];
@@ -817,6 +816,24 @@ mod tests {
           |d = 4
           |End If
         "#
+        .trim_margin_unsafe();
+        let actual = remove_chained_code(&input);
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_remove_chained_code_function_single_line() {
+        let input = r#"
+            |Private Function test() : if a > 10 then a = 0 : End If : End Function
+            "#
+        .trim_margin_unsafe();
+        let expected = r#"
+            |Private Function test()
+            |if a > 10 then
+            |a = 0
+            |End If
+            |End Function
+            "#
         .trim_margin_unsafe();
         let actual = remove_chained_code(&input);
         assert_eq!(expected, actual);
