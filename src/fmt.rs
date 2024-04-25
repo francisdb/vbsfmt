@@ -527,23 +527,23 @@ fn remove_chained_code(vbscript_code: &str) -> String {
                 segments = segments
                     .iter()
                     .map(|segment| {
-                        let mut segment = segment.to_string();
-                        if segment.to_ascii_lowercase().starts_with("end if") {
+                        let lower_segment = segment.to_ascii_lowercase();
+                        if lower_segment.starts_with("end if") {
                             has_end_if = true;
                         }
 
                         if !has_end_if {
-                            return segment;
+                            return segment.to_string();
                         }
 
-                        let then_index = segment.to_ascii_lowercase().find(" then ");
+                        let then_index = lower_segment.find(" then ");
                         if let Some(then_index) = then_index {
                             let first_part = &segment[..then_index + 5];
                             let second_part = &segment[then_index + 6..];
                             let new_segment = format!("{}\n{}", first_part, second_part);
                             new_segment
                         } else {
-                            segment
+                            segment.to_string()
                         }
                     })
                     .collect();
