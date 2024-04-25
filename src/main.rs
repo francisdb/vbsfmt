@@ -51,7 +51,7 @@ fn main() {
                 std::process::exit(1);
             }
             path
-        },
+        }
         None => input_path,
     };
 
