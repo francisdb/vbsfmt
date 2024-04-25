@@ -690,7 +690,7 @@ fn fix_indentation(vbscript_code: &str) -> String {
             }
 
             // enable this for debuging
-            println!("{}: {}", line_nr, indented_line);
+            // println!("{}: {}", line_nr, indented_line);
             indented_line
         })
         .collect();
