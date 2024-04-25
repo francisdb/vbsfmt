@@ -1,7 +1,7 @@
 /// Keywords to search/replace.
 /// The search does not use case sensitivity. Finds will be replaced according to the specified case in the array.
 /// E.g. "Sub" will match any sub, case-insensitive, and replace with "Sub".
-const VBS_KEYWORDS: [&str; 172] = [
+const VBS_KEYWORDS: [&str; 173] = [
     // VBScript (taken from Geshi with a few modifications)
     "Empty",
     "Nothing",
@@ -66,6 +66,7 @@ const VBS_KEYWORDS: [&str; 172] = [
     "DateSerial",
     "DateValue",
     "Day",
+    "Default",
     "Eval",
     "Exp",
     "Filter",
@@ -243,7 +244,7 @@ const VPINBALL_KEYWORDS: [&str; 62] = [
     "UserDirectory",
 ];
 
-const INDENT_STARTERS: [&str; 20] = [
+const INDENT_STARTERS: [&str; 21] = [
     "Case ",
     "Do",
     "Do ",
@@ -252,6 +253,7 @@ const INDENT_STARTERS: [&str; 20] = [
     "For ",
     "Function ",
     "Public Function ",
+    "Public Default Function ",
     "Private Function ",
     "If ",
     "Select Case ",
@@ -552,36 +554,38 @@ fn remove_chained_code(vbscript_code: &str) -> String {
                 // Join each segment onto a new line (effectively putting the code separated by colons onto new lines)
 
                 line = segments.join("\n");
+                let line_lower = line.to_ascii_lowercase();
 
                 // Determine what end statements must exist
-                if line.to_ascii_lowercase().starts_with("if ") {
+                if line_lower.starts_with("if ") {
                     stack.push("End If");
-                } else if line.to_ascii_lowercase().starts_with("select") {
+                } else if line_lower.starts_with("select") {
                     stack.push("End Select");
-                } else if line.to_ascii_lowercase().starts_with("for ") {
+                } else if line_lower.starts_with("for ") {
                     stack.push("Next");
-                } else if line.to_ascii_lowercase().starts_with("do ") {
+                } else if line_lower.starts_with("do ") {
                     stack.push("Loop");
-                } else if line.to_ascii_lowercase().starts_with("function ")
-                    || line.to_ascii_lowercase().starts_with("public function ")
-                    || line.to_ascii_lowercase().starts_with("private function ")
+                } else if line_lower.starts_with("function ")
+                    || line_lower.starts_with("public function ")
+                    || line_lower.starts_with("public default function ")
+                    || line_lower.starts_with("private function ")
                 {
                     stack.push("End Function");
-                } else if line.to_ascii_lowercase().starts_with("sub ")
-                    || line.to_ascii_lowercase().starts_with("public sub ")
-                    || line.to_ascii_lowercase().starts_with("private sub ")
+                } else if line_lower.starts_with("sub ")
+                    || line_lower.starts_with("public sub ")
+                    || line_lower.starts_with("private sub ")
                 {
                     stack.push("End Sub");
-                } else if line.to_ascii_lowercase().starts_with("property ")
-                    || line.to_ascii_lowercase().starts_with("public property ")
-                    || line.to_ascii_lowercase().starts_with("private property ")
+                } else if line_lower.starts_with("property ")
+                    || line_lower.starts_with("public property ")
+                    || line_lower.starts_with("private property ")
                 {
                     stack.push("End Property");
-                } else if line.to_ascii_lowercase().starts_with("class ") {
+                } else if line_lower.starts_with("class ") {
                     stack.push("End Class");
-                } else if line.to_ascii_lowercase().starts_with("while ") {
+                } else if line_lower.starts_with("while ") {
                     stack.push("Wend");
-                } else if line.to_ascii_lowercase().starts_with("with ") {
+                } else if line_lower.starts_with("with ") {
                     stack.push("End With");
                 }
 
@@ -642,6 +646,9 @@ fn fix_indentation(vbscript_code: &str) -> String {
             let line_without_comment = if let Some(comment_index) = comment_index {
                 &trimmed_line[..comment_index]
             } else {
+                if trimmed_line.is_empty() {
+                    return trimmed_line;
+                }
                 &trimmed_line
             };
 
@@ -650,9 +657,10 @@ fn fix_indentation(vbscript_code: &str) -> String {
                     || line_without_comment.eq_ignore_ascii_case(ender)
                 {
                     if current_indentation == 0 {
-                        panic!(
+                        eprintln!(
                             "ERROR: Negative indentation level at line {line_nr}: {trimmed_line}"
                         );
+                        current_indentation = 1;
                     }
 
                     // End Select follows a double indentation so we need to remove an extra indentation level.
@@ -1024,6 +1032,71 @@ mod tests {
             |        a = 0
             |    End If
             |End Function
+            |
+            "#
+        .trim_margin_crlf();
+        let actual = fmt(&input, FormatOptions::default());
+        assert_eq!(expected, actual);
+    }
+
+    /*
+
+     Public default Function init(primary, secondary, prim, sw, animate, isDropped)
+     Set m_primary = primary
+     End Function
+
+
+    */
+
+    #[test]
+    fn test_fmt_public_default_function() {
+        let input = r#"
+            |Public default Function init()
+            |Set m_primary = primary
+            |End Function
+            |
+            "#
+        .trim_margin_crlf();
+        let expected = r#"
+            |Public Default Function init()
+            |    Set m_primary = primary
+            |End Function
+            |
+            "#
+        .trim_margin_crlf();
+        let actual = fmt(&input, FormatOptions::default());
+        assert_eq!(expected, actual);
+    }
+
+    /*
+
+           If BallPos = 0 Then 'no ball data meaning the ball is entering and exiting pretty close to the same position, use current values.
+        BallPos = PSlope(aBall.x, FlipperStart, 0, FlipperEnd, 1)
+        If ballpos > 0.65 Then  Ycoef = LinearEnvelope(aBall.Y, YcoefIn, YcoefOut)                                                'find safety coefficient 'ycoef' data
+    End If
+
+    */
+
+    // TODO fix this test
+    #[ignore]
+    #[test]
+    fn test_fmt_nested_if() {
+        let input = r#"
+            |If BallPos = 0 Then 'no ball data meaning the ball is entering and exiting pretty close to the same position, use current values.
+            |BallPos = PSlope(aBall.x, FlipperStart, 0, FlipperEnd, 1)
+            |If ballpos > 0.65 Then Ycoef = LinearEnvelope(aBall.Y, YcoefIn, YcoefOut)                                                'find safety coefficient 'ycoef' data
+            |End If
+            |End If
+            |
+            "#
+        .trim_margin_crlf();
+        let expected = r#"
+            |If BallPos = 0 Then 'no ball data meaning the ball is entering and exiting pretty close to the same position, use current values.
+            |    BallPos = PSlope(aBall.x, FlipperStart, 0, FlipperEnd, 1)
+            |    If ballpos > 0.65 Then
+            |        Ycoef = LinearEnvelope(aBall.Y, YcoefIn, YcoefOut)                                                'find safety coefficient 'ycoef' data
+            |    End If
+            |End If
             |
             "#
         .trim_margin_crlf();
