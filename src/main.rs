@@ -9,17 +9,8 @@ fn main() {
         .author("Your Name <your.email@example.com>")
         .about("VBScript standard formatter")
         .subcommand(
-            Command::new("check")
-                .about("Check if the input file is already formatted")
-                .arg(
-                    Arg::new("input")
-                        .help("Sets the input file to use")
-                        .required(true),
-                ),
-        )
-        .subcommand(
             Command::new("fmt")
-                .about("Format the input file")
+                .about("Format the input file (default)")
                 .arg(
                     Arg::new("input")
                         .help("Sets the input file to use")
@@ -29,6 +20,15 @@ fn main() {
                     Arg::new("output")
                         .help("Sets the output file to use, defaults to overwriting the input file")
                         .required(false),
+                ),
+        )
+        .subcommand(
+            Command::new("check")
+                .about("Check if the input file is already formatted")
+                .arg(
+                    Arg::new("input")
+                        .help("Sets the input file to use")
+                        .required(true),
                 ),
         )
         .get_matches();
