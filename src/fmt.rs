@@ -270,12 +270,12 @@ const INDENT_STARTERS: [&str; 21] = [
 
 const INDENT_ENDERS: [&str; 7] = ["Else", "ElseIf ", "End ", "Loop", "Next", "Wend ", "Case "];
 
-const INDENT: &str = "    "; //"\t";
-
 pub(crate) struct FormatOptions {
     pub(crate) capitalize_keywords: bool,
     pub(crate) remove_chained_code: bool,
     pub(crate) fix_indentation: bool,
+    pub(crate) indent: String,
+    pub(crate) line_separator: String,
 }
 
 impl Default for FormatOptions {
@@ -284,6 +284,8 @@ impl Default for FormatOptions {
             capitalize_keywords: true,
             remove_chained_code: true,
             fix_indentation: true,
+            indent: "    ".to_string(),
+            line_separator: "\r\n".to_string(),
         }
     }
 }
@@ -304,7 +306,7 @@ pub(crate) fn fmt(input: &str, options: FormatOptions) -> String {
     }
 
     if options.fix_indentation {
-        data = fix_indentation(&data);
+        data = fix_indentation(&data, &options.indent);
     }
 
     // make sure the file ends with a newline
@@ -312,8 +314,10 @@ pub(crate) fn fmt(input: &str, options: FormatOptions) -> String {
         data.push('\n');
     }
 
-    // All line endings back to windows style (CRLF)
-    data = data.replace('\n', "\r\n");
+    // All line endings back to requested line separator
+    if options.line_separator != "\n" {
+        data = data.replace('\n', &options.line_separator);
+    }
 
     data
 }
@@ -631,8 +635,9 @@ fn remove_chained_code(vbscript_code: &str) -> String {
 /// This function expects the code to have all keywords capitalized. So it should be called after `capitalize_keywords`.
 ///
 /// @param {string} vbscriptCode The vbscript code
+/// @param {string} indent The string to use for indentation
 /// @returns {string} The re-indented code
-fn fix_indentation(vbscript_code: &str) -> String {
+fn fix_indentation(vbscript_code: &str, indent: &str) -> String {
     let mut current_indentation = 0;
 
     let updated_lines: Vec<String> = vbscript_code
@@ -673,7 +678,7 @@ fn fix_indentation(vbscript_code: &str) -> String {
             }
 
             // print current line at current indentation level
-            let indent = INDENT.repeat(current_indentation);
+            let indent = indent.repeat(current_indentation);
             let indented_line = format!("{}{}", indent, trimmed_line);
 
             for starter in INDENT_STARTERS.iter() {
@@ -869,7 +874,7 @@ mod tests {
             |
         "#
         .trim_margin_unsafe();
-        let actual = fix_indentation(&input);
+        let actual = fix_indentation(&input, "    ");
         assert_eq!(expected, actual);
     }
 
@@ -890,7 +895,7 @@ mod tests {
         "#
         .trim_margin()
         .unwrap();
-        let actual = fix_indentation(&input);
+        let actual = fix_indentation(&input, "    ");
         assert_eq!(expected, actual);
     }
 
@@ -908,7 +913,25 @@ mod tests {
             |Next
         "#
         .trim_margin_unsafe();
-        let actual = fix_indentation(&input);
+        let actual = fix_indentation(&input, "    ");
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_indentation_tabs() {
+        let input = r#"
+            |For Each i In Lights
+            |Lights.state = 0
+            |Next
+        "#
+        .trim_margin_unsafe();
+        let expected = "
+            |For Each i In Lights
+            |\tLights.state = 0
+            |Next
+        "
+        .trim_margin_unsafe();
+        let actual = fix_indentation(&input, "\t");
         assert_eq!(expected, actual);
     }
 
@@ -1101,6 +1124,18 @@ mod tests {
             "#
         .trim_margin_crlf();
         let actual = fmt(&input, FormatOptions::default());
+        assert_eq!(expected, actual);
+    }
+
+    #[test]
+    fn test_fmt_line_separator() {
+        let input = "a\nb\rc\r\nd";
+        let expected = "a\t\r\nb\t\r\nc\t\r\nd\t\r\n";
+        let options = FormatOptions {
+            line_separator: "\t\r\n".to_string(),
+            ..Default::default()
+        };
+        let actual = fmt(input, options);
         assert_eq!(expected, actual);
     }
 }
