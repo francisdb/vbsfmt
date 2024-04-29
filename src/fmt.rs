@@ -718,23 +718,20 @@ fn fix_indentation(vbscript_code: &str, indent: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use indoc::indoc;
     use pretty_assertions::assert_eq;
     use trim_margin::MarginTrimmable;
 
     use super::*;
 
     trait FullTrim {
+        #[deprecated(note = "Switch to indoc! macro instead of using this method.")]
         fn trim_margin_crlf(&self) -> String;
-        fn trim_margin_unsafe(&self) -> String;
     }
 
     impl FullTrim for &str {
         fn trim_margin_crlf(&self) -> String {
             self.trim_margin().unwrap().replace('\n', "\r\n")
-        }
-
-        fn trim_margin_unsafe(&self) -> String {
-            self.trim_margin().unwrap()
         }
     }
 
@@ -796,141 +793,123 @@ mod tests {
 
     #[test]
     fn test_remove_chained_code() {
-        let input = r#"
-          |'comment before chain
-          |test():test2():test3()'chain comment
-          |'comment after chain
-        "#
-        .trim_margin_unsafe();
-        let expected = r#"
-          |'comment before chain
-          |'chain comment
-          |test()
-          |test2()
-          |test3()
-          |'comment after chain
-          "#
-        .trim_margin_unsafe();
+        let input = indoc! {r#"
+          'comment before chain
+          test():test2():test3()'chain comment
+          'comment after chain
+        "#};
+        let expected = indoc! {r#"
+          'comment before chain
+          'chain comment
+          test()
+          test2()
+          test3()
+          'comment after chain"#};
         let actual = remove_chained_code(&input);
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn test_remove_chained_code_if_with_colon() {
-        let input = r#"
-          |If a = 1 Then b = 2: c = 3: d = 4
-        "#
-        .trim_margin_unsafe();
+        let input = indoc! {r#"
+          If a = 1 Then b = 2: c = 3: d = 4
+        "#};
         // no indentation yet at this point
-        let expected = r#"
-          |If a = 1 Then
-          |b = 2
-          |c = 3
-          |d = 4
-          |End If
-        "#
-        .trim_margin_unsafe();
+        let expected = indoc! {r#"
+          If a = 1 Then
+          b = 2
+          c = 3
+          d = 4
+          End If"#};
         let actual = remove_chained_code(&input);
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn test_remove_chained_code_function_single_line() {
-        let input = r#"
-            |Private Function test() : if a > 10 then a = 0 : End If : End Function
-            "#
-        .trim_margin_unsafe();
-        let expected = r#"
-            |Private Function test()
-            |if a > 10 then
-            |a = 0
-            |End If
-            |End Function
-            "#
-        .trim_margin_unsafe();
+        let input = indoc! {r#"
+            Private Function test() : if a > 10 then a = 0 : End If : End Function
+            "#};
+        let expected = indoc! {r#"
+            Private Function test()
+            if a > 10 then
+            a = 0
+            End If
+            End Function"#};
         let actual = remove_chained_code(&input);
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn test_indentation() {
-        let input = r#"
-          |    If mode = 5 Then
-          |Dim i
-          |   For Each i In Lights
-          |     Lights.state = 0
-          |                       Next
-          | End If
-          |
-        "#
-        .trim_margin_unsafe();
-        let expected = r#"
-            |If mode = 5 Then
-            |    Dim i
-            |    For Each i In Lights
-            |        Lights.state = 0
-            |    Next
-            |End If
-            |
-        "#
-        .trim_margin_unsafe();
+        let input = indoc! {r#"
+              If mode = 5 Then
+          Dim i
+             For Each i In Lights
+               Lights.state = 0
+                                 Next
+           End If
+          
+        "#};
+        let expected = indoc! {r#"
+            If mode = 5 Then
+                Dim i
+                For Each i In Lights
+                    Lights.state = 0
+                Next
+            End If
+            
+        "#};
         let actual = fix_indentation(&input, "    ");
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn test_indentation_keep() {
-        let input = r#"
-            |' Hello World
-            |Option Explicit
-            |Class Test
-            |End Class
-        "#
-        .trim_margin_unsafe();
-        let expected = r#"
-            |' Hello World
-            |Option Explicit
-            |Class Test
-            |End Class
-        "#
-        .trim_margin()
-        .unwrap();
+        let input = indoc! {r#"
+            ' Hello World
+            Option Explicit
+            Class Test
+            End Class
+        "#};
+        let expected = indoc! {r#"
+            ' Hello World
+            Option Explicit
+            Class Test
+            End Class
+        "#};
         let actual = fix_indentation(&input, "    ");
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn test_indentation_for_each() {
-        let input = r#"
-            |For Each i In Lights
-            |Lights.state = 0
-            |Next
-        "#
-        .trim_margin_unsafe();
-        let expected = r#"
-            |For Each i In Lights
-            |    Lights.state = 0
-            |Next
-        "#
-        .trim_margin_unsafe();
+        let input = indoc! {r#"
+            For Each i In Lights
+            Lights.state = 0
+            Next
+        "#};
+        let expected = indoc! {r#"
+            For Each i In Lights
+                Lights.state = 0
+            Next
+        "#};
         let actual = fix_indentation(&input, "    ");
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn test_indentation_tabs() {
-        let input = r#"
-            |For Each i In Lights
-            |Lights.state = 0
-            |Next
-        "#
-        .trim_margin_unsafe();
-        let expected = "
-            |For Each i In Lights
-            |\tLights.state = 0
-            |Next
-        "
-        .trim_margin_unsafe();
+        let input = indoc! {r#"
+            For Each i In Lights
+            Lights.state = 0
+            Next
+        "#};
+        let expected = indoc! {"
+            For Each i In Lights
+            \tLights.state = 0
+            Next
+        "};
         let actual = fix_indentation(&input, "\t");
         assert_eq!(expected, actual);
     }
@@ -1044,20 +1023,19 @@ mod tests {
 
     #[test]
     fn test_fmt_function_single_line() {
-        let input = r#"
-            |Private Function test() : if a > 10 then a = 0 : End If : End Function
-            |
-            "#
-        .trim_margin_crlf();
-        let expected = r#"
-            |Private Function test()
-            |    If a > 10 Then
-            |        a = 0
-            |    End If
-            |End Function
-            |
-            "#
-        .trim_margin_crlf();
+        let input = indoc! {r#"
+            Private Function test() : if a > 10 then a = 0 : End If : End Function
+
+            "#}
+        .replace('\n', "\r\n");
+        let expected = indoc! {r#"
+            Private Function test()
+                If a > 10 Then
+                    a = 0
+                End If
+            End Function
+            "#}
+        .replace('\n', "\r\n");
         let actual = fmt(&input, FormatOptions::default());
         assert_eq!(expected, actual);
     }
@@ -1073,20 +1051,18 @@ mod tests {
 
     #[test]
     fn test_fmt_public_default_function() {
-        let input = r#"
-            |Public default Function init()
-            |Set m_primary = primary
-            |End Function
-            |
-            "#
-        .trim_margin_crlf();
-        let expected = r#"
-            |Public Default Function init()
-            |    Set m_primary = primary
-            |End Function
-            |
-            "#
-        .trim_margin_crlf();
+        let input = indoc! {r#"
+            Public default Function init()
+            Set m_primary = primary
+            End Function
+            "#}
+        .replace('\n', "\r\n");
+        let expected = indoc! {r#"
+            Public Default Function init()
+                Set m_primary = primary
+            End Function
+            "#}
+        .replace('\n', "\r\n");
         let actual = fmt(&input, FormatOptions::default());
         assert_eq!(expected, actual);
     }
