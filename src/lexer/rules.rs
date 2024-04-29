@@ -20,6 +20,7 @@ pub(crate) const fn unambiguous_single_char(c: char) -> Option<TokenKind> {
         '-' => T![-],
         '*' => T![*],
         '/' => T![/],
+        '\\' => T!['\\'],
         '^' => T![^],
         '.' => T![.],
         ',' => T![,],
@@ -68,17 +69,13 @@ fn match_regex(input: &str, r: &Regex) -> Option<u32> {
     r.find(input).map(|regex_match| regex_match.end() as u32)
 }
 
-fn match_regex_first_group(input: &str, r: &Regex) -> Option<u32> {
-    r.captures(input)
-        .and_then(|captures| captures.get(1))
-        .map(|m| m.end() as u32)
-}
-
 lazy_static! {
     /// CRLF, LF (or CR) are all valid newline characters in VBScript.
     static ref NEWLINE_REGEX: Regex = Regex::new(r#"^(\r\n|\n|\r)"#).unwrap();
-    static ref STRING_REGEX: Regex = Regex::new(r#"^"((\\"|\\\\)|[^\\"])*""#).unwrap();
-    static ref COMMENT_REGEX: Regex = Regex::new(r#"^'([^\n]*)\n"#).unwrap();
+    // There is only one kind of escape sequence in VBScript, and that is the double quote.
+    // eg: "hello ""world"""
+    static ref STRING_REGEX: Regex = Regex::new(r#"^"([^"]|"")*""#).unwrap();
+    static ref COMMENT_REGEX: Regex = Regex::new(r#"^'([^\r\n]*)"#).unwrap();
     static ref FLOAT_REGEX: Regex =
         Regex::new(r#"^((\d+(\.\d+)?)|(\.\d+))([Ee](\+|-)?\d+)?"#).unwrap();
     static ref IDENTIFIER_REGEX: Regex = Regex::new(r##"^([A-Za-z]|_)([A-Za-z]|_|\d)*"##).unwrap();
@@ -111,28 +108,40 @@ pub(crate) fn get_rules() -> Vec<Rule> {
             matches: |input| match_single_char(input, '>'),
         },
         Rule {
-            kind: T![==],
-            matches: |input| match_two_chars(input, '=', '='),
+            kind: T![&],
+            matches: |input| match_single_char(input, '&'),
         },
         Rule {
-            kind: T![!=],
-            matches: |input| match_two_chars(input, '!', '='),
+            kind: T![<>],
+            matches: |input| match_two_chars(input, '<', '>'),
         },
         Rule {
-            kind: T![&&],
-            matches: |input| match_two_chars(input, '&', '&'),
-        },
-        Rule {
-            kind: T![||],
-            matches: |input| match_two_chars(input, '|', '|'),
+            kind: T![<>],
+            matches: |input| match_two_chars(input, '>', '<'),
         },
         Rule {
             kind: T![<=],
             matches: |input| match_two_chars(input, '<', '='),
         },
         Rule {
+            kind: T![<=],
+            matches: |input| match_two_chars(input, '=', '<'),
+        },
+        Rule {
             kind: T![>=],
             matches: |input| match_two_chars(input, '>', '='),
+        },
+        Rule {
+            kind: T![>=],
+            matches: |input| match_two_chars(input, '=', '>'),
+        },
+        Rule {
+            kind: T![and],
+            matches: |input| match_keyword(input, "and"),
+        },
+        Rule {
+            kind: T![or],
+            matches: |input| match_keyword(input, "or"),
         },
         Rule {
             kind: T![option],
@@ -277,7 +286,7 @@ pub(crate) fn get_rules() -> Vec<Rule> {
         },
         Rule {
             kind: T![comment],
-            matches: move |input| match_regex_first_group(input, &COMMENT_REGEX),
+            matches: move |input| match_regex(input, &COMMENT_REGEX),
         },
         Rule {
             kind: T![nl],
@@ -302,4 +311,32 @@ pub(crate) fn get_rules() -> Vec<Rule> {
             matches: |input| match_regex(input, &IDENTIFIER_REGEX),
         },
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_string() {
+        let input = r#""hello""#;
+        let m = STRING_REGEX.find(input).map(|m| m.as_str());
+        assert_eq!(m, Some("\"hello\""));
+    }
+
+    #[test]
+    fn test_comment() {
+        let input = "' comment\n";
+        let m = COMMENT_REGEX.find(input).map(|m| m.as_str());
+        assert_eq!(m, Some("' comment"));
+    }
+
+    #[test]
+    fn test_comment_with_pipe() {
+        let input = "' |test|\n";
+        let m = COMMENT_REGEX.find(input).map(|m| m.as_str());
+        assert_eq!(m, Some("' |test|"));
+    }
 }

@@ -1,6 +1,6 @@
 pub use token::TokenKind;
 
-use crate::lexer::rules::{unambiguous_single_char, Rule};
+use crate::lexer::rules::{Rule, unambiguous_single_char};
 use crate::lexer::token::{Span, Token};
 use crate::T;
 
@@ -84,15 +84,12 @@ impl<'input> Lexer<'input> {
             .unwrap_or_else(|| input.len());
         debug_assert!(len <= input.len());
 
-        // NEW!
-        // Because `valid_token` advances our position,
-        // we need to reset it to after the erroneous token.
         let len = len as u32;
         self.position = start + len;
-        println!(
-            "Invalid token: {:?}",
-            &input[start as usize..(start + len) as usize]
-        );
+        // println!(
+        //     "Invalid token: {:?}",
+        //     &input[start as usize..(start + len) as usize]
+        // );
         Token {
             kind: T![error],
             span: Span {

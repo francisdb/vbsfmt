@@ -70,7 +70,10 @@ pub enum TokenKind {
     Plus,
     Minus,
     Times,
+    /// Regular division
     Slash,
+    /// Integer division
+    Backslash,
     Pow,
     Eq,
     Dot,
@@ -78,7 +81,6 @@ pub enum TokenKind {
     Underscore,
     Bang,
     Ampersand,
-    Bar,
     Colon,
     SemiColon,
     // Brackets
@@ -140,7 +142,6 @@ pub enum TokenKind {
     // Operators
     And,
     Or,
-    Eqq,
     Neq,
     Geq,
     Leq,
@@ -166,6 +167,9 @@ macro_rules! T {
     [/] => {
         $crate::lexer::TokenKind::Slash
     };
+    ['\\'] => {
+        $crate::lexer::TokenKind::Backslash
+    };
     [^] => {
         $crate::lexer::TokenKind::Pow
     };
@@ -186,9 +190,6 @@ macro_rules! T {
     };
     [&] => {
         $crate::lexer::TokenKind::Ampersand
-    };
-    [|] => {
-        $crate::lexer::TokenKind::Bar
     };
     [:] => {
         $crate::lexer::TokenKind::Colon
@@ -356,16 +357,13 @@ macro_rules! T {
     [false] => {
         $crate::lexer::TokenKind::False
     };
-    [&&] => {
+    [and] => {
         $crate::lexer::TokenKind::And
     };
-    [||] => {
+    [or] => {
         $crate::lexer::TokenKind::Or
     };
-    [==] => {
-        $crate::lexer::TokenKind::Eqq
-    };
-    [!=] => {
+    [<>] => {
         $crate::lexer::TokenKind::Neq
     };
     [>=] => {
@@ -399,6 +397,7 @@ impl fmt::Display for TokenKind {
                 T![-] => "-",
                 T![*] => "*",
                 T![/] => "/",
+                T!['\\'] => "\\",
                 T![^] => "^",
                 T![=] => "=",
                 T![.] => ".",
@@ -406,7 +405,6 @@ impl fmt::Display for TokenKind {
                 T![_] => "_",
                 T![!] => "!",
                 T![&] => "&",
-                T![|] => "|",
                 T![:] => ":",
                 T![;] => ";",
                 // Brackets
@@ -466,10 +464,9 @@ impl fmt::Display for TokenKind {
                 T![true] => "true",
                 T![false] => "false",
                 // Operators
-                T![&&] => "&&",
-                T![||] => "||",
-                T![==] => "==",
-                T![!=] => "!=",
+                T![and] => "and",
+                T![or] => "or",
+                T![<>] => "<>",
                 T![>=] => ">=",
                 T![<=] => "<=",
                 // Misc

@@ -1,3 +1,5 @@
+use std::ops::Range;
+
 use indoc::indoc;
 use pretty_assertions::assert_eq;
 
@@ -89,12 +91,21 @@ fn test_lexer_only_whitespace() {
 
 #[test]
 fn maybe_multiple_char_tokens() {
-    let input = "&&=<=_!=||";
+    let input = "and= <=_<>or";
     let mut lexer = Lexer::new(input);
     let tokens = lexer.tokenize();
     assert_tokens!(
         tokens,
-        [T![&&], T![=], T![<=], T![_], T![!=], T![||], T![EOF],]
+        [
+            T![and],
+            T![=],
+            T![ws],
+            T![<=],
+            T![_],
+            T![<>],
+            T![or],
+            T![EOF],
+        ]
     );
 }
 
@@ -582,10 +593,33 @@ fn test_lexer_options() {
 }
 
 #[test]
+fn test_lexer_string_concatenation() {
+    let input = r#"a = "Hello" & "World""#;
+    let mut lexer = Lexer::new(input);
+    let tokens: Vec<_> = lexer.tokenize();
+    let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
+    assert_eq!(
+        token_kinds,
+        [
+            T![ident],
+            T![ws],
+            T![=],
+            T![ws],
+            T![string],
+            T![ws],
+            T![&],
+            T![ws],
+            T![string],
+            T![EOF],
+        ]
+    );
+}
+
+#[test]
 fn test_lexer_with() {
     let input = indoc! {r#"
         With obj
-            .property = 1
+            .property = 5 \ x
         End With
     "#};
     let mut lexer = Lexer::new(input);
@@ -605,6 +639,8 @@ fn test_lexer_with() {
             T![ident],
             T![=],
             T![int],
+            T!['\\'],
+            T![ident],
             T![nl],
             T![end],
             T![with],
@@ -612,4 +648,112 @@ fn test_lexer_with() {
             T![EOF],
         ]
     );
+}
+
+#[test]
+fn test_lexer_comments_with_different_line_endings() {
+    let input = "' comment with a CRLF\r\n' comment with a CR\r' comment with a LF\n";
+    let mut lexer = Lexer::new(input);
+    let tokens: Vec<_> = lexer.tokenize();
+    let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
+
+    // print all tokens with their string
+    for token in tokens.iter() {
+        println!("{:?} {:?}", token.kind, &input[token.span]);
+    }
+
+    assert_eq!(
+        token_kinds,
+        [
+            T![comment],
+            T![nl],
+            T![comment],
+            T![nl],
+            T![comment],
+            T![nl],
+            T![EOF],
+        ]
+    );
+}
+
+#[test]
+fn test_lexer_string_with_backslash() {
+    let input =
+        r#"check.RegRead ("HKLM\Software\Microsoft\Windows NT\CurrentVersion\CurrentVersion")"#;
+    let mut lexer = Lexer::new(input);
+    let tokens: Vec<_> = lexer
+        .tokenize()
+        .into_iter()
+        .filter(|t| t.kind != T![ws])
+        .collect();
+    let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
+    assert_eq!(
+        token_kinds,
+        [
+            T![ident],
+            T![.],
+            T![ident],
+            T!['('],
+            T![string],
+            T![')'],
+            T![EOF],
+        ]
+    );
+}
+#[test]
+fn test_lexer_string_with_escaped_quotes() {
+    let input = r#"
+        str = "hello ""world"""
+    "#
+    .trim();
+    let mut lexer = Lexer::new(input);
+    let tokens: Vec<_> = lexer
+        .tokenize()
+        .into_iter()
+        .filter(|t| t.kind != T![ws])
+        .collect();
+    let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
+    assert_eq!(token_kinds, [T![ident], T![=], T![string], T![EOF],]);
+}
+
+#[test]
+fn test_lexer_comment_with_pipe() {
+    let input = "' |\n";
+    let mut lexer = Lexer::new(input);
+    let tokens: Vec<_> = lexer
+        .tokenize()
+        .into_iter()
+        .filter(|t| t.kind != T![ws])
+        .collect();
+    let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
+    assert_eq!(token_kinds, [T![comment], T![nl], T![EOF],]);
+}
+
+/// This test is ignored because it is slow and only useful for development.
+/// It tries to tokenize all `.vbs` files going one level lower from the root of the project.
+/// We suggest to make sure you have https://github.com/jsm174/vpx-standalone-scripts cloned
+/// in the same directory as this project.
+#[test]
+#[ignore]
+fn try_tokenizing_all_vbs_files() {
+    let paths = glob::glob("../**/*.vbs").unwrap().filter_map(Result::ok);
+    for path in paths {
+        println!("Tokenizing file: {:?}", path);
+        let input = std::fs::read_to_string(&path).unwrap();
+        let mut lexer = Lexer::new(&input);
+        let tokens = lexer.tokenize();
+        // print path and the last 10 tokens before the error if there is an error
+        // and fail the test
+        if let Some(token) = tokens.iter().find(|t| t.kind == T![error]) {
+            let idx = tokens.iter().position(|t| t == token).unwrap();
+            let start = if idx > 10 { idx - 10 } else { 0 };
+            let end = idx + 1;
+            println!("Error in file: {:?}", path);
+            for token in &tokens[start..end] {
+                let range: Range<usize> = token.span.into();
+                println!("  {:?} {:?}", token.kind, &input[range]);
+            }
+            panic!("Error in file: {:?}", path);
+        }
+    }
 }
