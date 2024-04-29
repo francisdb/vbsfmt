@@ -720,20 +720,8 @@ fn fix_indentation(vbscript_code: &str, indent: &str) -> String {
 mod tests {
     use indoc::indoc;
     use pretty_assertions::assert_eq;
-    use trim_margin::MarginTrimmable;
 
     use super::*;
-
-    trait FullTrim {
-        #[deprecated(note = "Switch to indoc! macro instead of using this method.")]
-        fn trim_margin_crlf(&self) -> String;
-    }
-
-    impl FullTrim for &str {
-        fn trim_margin_crlf(&self) -> String {
-            self.trim_margin().unwrap().replace('\n', "\r\n")
-        }
-    }
 
     #[test]
     fn test_capitalize_keywords() {
@@ -917,106 +905,98 @@ mod tests {
     #[test]
     fn test_fmt_class() {
         let input = r#"class MyClass:END ClaSS"#;
-        let expected = r#"
-            |Class MyClass
-            |End Class
-            |
-            "#
-        .trim_margin_crlf();
+        let expected = indoc! { r#"
+            Class MyClass
+            End Class
+            "#}
+        .replace('\n', "\r\n");
         let actual = fmt(input, FormatOptions::default());
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn test_fmt_select_case() {
-        let input = r#"
-            |select case strPerson
-            |case "Alex"
-            |WScript.Echo "We found Alex"
-            |case "Jasper"
-            |WScript.Echo "We found Jasper"
-            |end select
-            |
-            "#
-        .trim_margin_crlf();
-        let expected = r#"
-            |Select Case strPerson
-            |    Case "Alex"
-            |        WScript.Echo "We found Alex"
-            |    Case "Jasper"
-            |        WScript.Echo "We found Jasper"
-            |End Select
-            |
-            "#
-        .trim_margin_crlf();
+        let input = indoc! {r#"
+            select case strPerson
+            case "Alex"
+            WScript.Echo "We found Alex"
+            case "Jasper"
+            WScript.Echo "We found Jasper"
+            end select
+            "#}
+        .replace('\n', "\r\n");
+        let expected = indoc! {r#"
+            Select Case strPerson
+                Case "Alex"
+                    WScript.Echo "We found Alex"
+                Case "Jasper"
+                    WScript.Echo "We found Jasper"
+            End Select
+            "#}
+        .replace('\n', "\r\n");
         let actual = fmt(&input, FormatOptions::default());
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn test_fmt_while() {
-        let input = r#"
-            |Dim Counter :  Counter = 10
-            |While Counter < 15    ' Test value of Counter.
-            |Counter = Counter + 1   ' Increment Counter.
-            |document.write("The current value of the counter is : " & Counter)
-            |document.write("<br></br>")
-            |Wend ' While loop exits if Counter Value becomes 15.
-            |
-            "#
-        .trim_margin_crlf();
-        let expected = r#"
-            |Dim Counter
-            |Counter = 10
-            |While Counter < 15    ' Test value of Counter.
-            |    Counter = Counter + 1   ' Increment Counter.
-            |    document.write("The current value of the counter is : " & Counter)
-            |    document.write("<br></br>")
-            |Wend ' While loop exits if Counter Value becomes 15.
-            |
-            "#
-        .trim_margin_crlf();
+        let input = indoc! {r#"
+            Dim Counter :  Counter = 10
+            While Counter < 15    ' Test value of Counter.
+            Counter = Counter + 1   ' Increment Counter.
+            document.write("The current value of the counter is : " & Counter)
+            document.write("<br></br>")
+            Wend ' While loop exits if Counter Value becomes 15.
+            
+            "#}
+        .replace('\n', "\r\n");
+        let expected = indoc! {r#"
+            Dim Counter
+            Counter = 10
+            While Counter < 15    ' Test value of Counter.
+                Counter = Counter + 1   ' Increment Counter.
+                document.write("The current value of the counter is : " & Counter)
+                document.write("<br></br>")
+            Wend ' While loop exits if Counter Value becomes 15.
+            "#}
+        .replace('\n', "\r\n");
         let actual = fmt(&input, FormatOptions::default());
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn test_fmt_with() {
-        let input = r#"
-            |With plungerIM
-            |.InitImpulseP swPlunger, IMPowerSetting, IMTime
-            |.Random 0.8
-            |End With
-            |
-            "#
-        .trim_margin_crlf();
-        let expected = r#"
-            |With plungerIM
-            |    .InitImpulseP swPlunger, IMPowerSetting, IMTime
-            |    .Random 0.8
-            |End With
-            |
-            "#
-        .trim_margin_crlf();
+        let input = indoc! {r#"
+            With plungerIM
+            .InitImpulseP swPlunger, IMPowerSetting, IMTime
+            .Random 0.8
+            End With
+            "#}
+        .replace('\n', "\r\n");
+        let expected = indoc! {r#"
+            With plungerIM
+                .InitImpulseP swPlunger, IMPowerSetting, IMTime
+                .Random 0.8
+            End With
+            "#}
+        .replace('\n', "\r\n");
         let actual = fmt(&input, FormatOptions::default());
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn test_fmt_if_with_exit() {
-        let input = r#"
-            |If Err Then x = 0: Exit Sub
-            |
-            "#
-        .trim_margin_crlf();
-        let expected = r#"
-            |If Err Then
-            |    x = 0
-            |    Exit Sub
-            |End If
-            |
-            "#
-        .trim_margin_crlf();
+        let input = indoc! { r#"
+            If Err Then x = 0: Exit Sub
+            "#}
+        .replace('\n', "\r\n");
+        let expected = indoc! { r#"
+            If Err Then
+                x = 0
+                Exit Sub
+            End If
+            "#}
+        .replace('\n', "\r\n");
         let actual = fmt(&input, FormatOptions::default());
         assert_eq!(expected, actual);
     }
@@ -1080,25 +1060,23 @@ mod tests {
     #[ignore]
     #[test]
     fn test_fmt_nested_if() {
-        let input = r#"
-            |If BallPos = 0 Then 'no ball data meaning the ball is entering and exiting pretty close to the same position, use current values.
-            |BallPos = PSlope(aBall.x, FlipperStart, 0, FlipperEnd, 1)
-            |If ballpos > 0.65 Then Ycoef = LinearEnvelope(aBall.Y, YcoefIn, YcoefOut)                                                'find safety coefficient 'ycoef' data
-            |End If
-            |End If
-            |
-            "#
-        .trim_margin_crlf();
-        let expected = r#"
-            |If BallPos = 0 Then 'no ball data meaning the ball is entering and exiting pretty close to the same position, use current values.
-            |    BallPos = PSlope(aBall.x, FlipperStart, 0, FlipperEnd, 1)
-            |    If ballpos > 0.65 Then
-            |        Ycoef = LinearEnvelope(aBall.Y, YcoefIn, YcoefOut)                                                'find safety coefficient 'ycoef' data
-            |    End If
-            |End If
-            |
-            "#
-        .trim_margin_crlf();
+        let input = indoc! { r#"
+            If BallPos = 0 Then 'no ball data meaning the ball is entering and exiting pretty close to the same position, use current values.
+            BallPos = PSlope(aBall.x, FlipperStart, 0, FlipperEnd, 1)
+            If ballpos > 0.65 Then Ycoef = LinearEnvelope(aBall.Y, YcoefIn, YcoefOut)                                                'find safety coefficient 'ycoef' data
+            End If
+            End If
+            "#}
+            .replace('\n', "\r\n");
+        let expected = indoc! { r#"
+            If BallPos = 0 Then 'no ball data meaning the ball is entering and exiting pretty close to the same position, use current values.
+                BallPos = PSlope(aBall.x, FlipperStart, 0, FlipperEnd, 1)
+                If ballpos > 0.65 Then
+                    Ycoef = LinearEnvelope(aBall.Y, YcoefIn, YcoefOut)                                                'find safety coefficient 'ycoef' data
+                End If
+            End If
+            "#}
+        .replace('\n', "\r\n");
         let actual = fmt(&input, FormatOptions::default());
         assert_eq!(expected, actual);
     }
