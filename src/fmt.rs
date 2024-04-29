@@ -805,7 +805,7 @@ mod tests {
           test2()
           test3()
           'comment after chain"#};
-        let actual = remove_chained_code(&input);
+        let actual = remove_chained_code(input);
         assert_eq!(expected, actual);
     }
 
@@ -821,7 +821,7 @@ mod tests {
           c = 3
           d = 4
           End If"#};
-        let actual = remove_chained_code(&input);
+        let actual = remove_chained_code(input);
         assert_eq!(expected, actual);
     }
 
@@ -836,7 +836,7 @@ mod tests {
             a = 0
             End If
             End Function"#};
-        let actual = remove_chained_code(&input);
+        let actual = remove_chained_code(input);
         assert_eq!(expected, actual);
     }
 
@@ -860,7 +860,7 @@ mod tests {
             End If
             
         "#};
-        let actual = fix_indentation(&input, "    ");
+        let actual = fix_indentation(input, "    ");
         assert_eq!(expected, actual);
     }
 
@@ -878,7 +878,7 @@ mod tests {
             Class Test
             End Class
         "#};
-        let actual = fix_indentation(&input, "    ");
+        let actual = fix_indentation(input, "    ");
         assert_eq!(expected, actual);
     }
 
@@ -894,7 +894,7 @@ mod tests {
                 Lights.state = 0
             Next
         "#};
-        let actual = fix_indentation(&input, "    ");
+        let actual = fix_indentation(input, "    ");
         assert_eq!(expected, actual);
     }
 
@@ -910,7 +910,7 @@ mod tests {
             \tLights.state = 0
             Next
         "};
-        let actual = fix_indentation(&input, "\t");
+        let actual = fix_indentation(input, "\t");
         assert_eq!(expected, actual);
     }
 
