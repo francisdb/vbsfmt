@@ -1,6 +1,6 @@
 pub use token::TokenKind;
 
-use crate::lexer::rules::{Rule, unambiguous_single_char};
+use crate::lexer::rules::{unambiguous_single_char, Rule};
 use crate::lexer::token::{Span, Token};
 use crate::T;
 
