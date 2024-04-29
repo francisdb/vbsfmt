@@ -227,6 +227,8 @@ fn test_lexer_if_else() {
     let input = indoc! {r#"
         If (a = b) Then
             a = 1
+        ElseIf (a = c) Then
+            a = -1    
         Else
             a = 2
         End If
@@ -251,6 +253,19 @@ fn test_lexer_if_else() {
             T![nl],
             T![ident],
             T![=],
+            T![int],
+            T![nl],
+            T![elseif],
+            T!['('],
+            T![ident],
+            T![=],
+            T![ident],
+            T![')'],
+            T![then],
+            T![nl],
+            T![ident],
+            T![=],
+            T![-],
             T![int],
             T![nl],
             T![else],
@@ -563,5 +578,38 @@ fn test_lexer_options() {
     assert_eq!(
         token_kinds,
         [T![option], T![ws], T![ident], T![nl], T![EOF],]
+    );
+}
+
+#[test]
+fn test_lexer_with() {
+    let input = indoc! {r#"
+        With obj
+            .property = 1
+        End With
+    "#};
+    let mut lexer = Lexer::new(input);
+    let tokens: Vec<_> = lexer
+        .tokenize()
+        .into_iter()
+        .filter(|t| t.kind != T![ws])
+        .collect();
+    let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
+    assert_eq!(
+        token_kinds,
+        [
+            T![with],
+            T![ident],
+            T![nl],
+            T![.],
+            T![ident],
+            T![=],
+            T![int],
+            T![nl],
+            T![end],
+            T![with],
+            T![nl],
+            T![EOF],
+        ]
     );
 }

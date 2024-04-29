@@ -239,6 +239,10 @@ pub(crate) fn get_rules() -> Vec<Rule> {
             matches: |input| match_keyword(input, "then"),
         },
         Rule {
+            kind: T![elseif],
+            matches: |input| match_keyword(input, "elseif"),
+        },
+        Rule {
             kind: T![else],
             matches: |input| match_keyword(input, "else"),
         },

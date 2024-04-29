@@ -105,6 +105,7 @@ pub enum TokenKind {
     KeywordIf,
     KeywordThen,
     KeywordElse,
+    KeywordElseIf,
     KeywordSet,
     KeywordEnd,
     KeywordClass,
@@ -330,6 +331,9 @@ macro_rules! T {
     [else] => {
         $crate::lexer::TokenKind::KeywordElse
     };
+    [elseif] => {
+        $crate::lexer::TokenKind::KeywordElseIf
+    };
     [end] => {
         $crate::lexer::TokenKind::KeywordEnd
     };
@@ -451,6 +455,7 @@ impl fmt::Display for TokenKind {
                 T![case] => "case",
                 T![if] => "if",
                 T![then] => "then",
+                T![elseif] => "elseif",
                 T![else] => "else",
                 T![end] => "end",
                 T![exit] => "exit",
