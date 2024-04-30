@@ -1,7 +1,7 @@
-pub use token::TokenKind;
+pub use token::{Token, TokenKind};
 
 use crate::lexer::rules::{unambiguous_single_char, Rule};
-use crate::lexer::token::{Span, Token};
+use crate::lexer::token::Span;
 use crate::T;
 
 mod rules;
@@ -154,6 +154,15 @@ mod test {
     }
 
     #[test]
+    fn test_string_literal() {
+        let input = r#""hello world""#;
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.tokenize();
+        let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
+        assert_eq!(token_kinds, [T![string_literal], T![EOF],]);
+    }
+
+    #[test]
     fn test_lexer_options() {
         let input = indoc! {r#"
         Option Explicit
@@ -193,7 +202,10 @@ mod test {
             .filter(|t| t.kind != T![ws])
             .collect();
         let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
-        assert_eq!(token_kinds, [T![ident], T![=], T![string], T![EOF],]);
+        assert_eq!(
+            token_kinds,
+            [T![ident], T![=], T![string_literal], T![EOF],]
+        );
     }
 
     #[test]

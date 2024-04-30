@@ -8,6 +8,10 @@ pub struct Token {
 }
 
 impl Token {
+    pub fn is_empty(&self) -> bool {
+        self.kind == TokenKind::Eof
+    }
+
     pub fn len(&self) -> usize {
         (self.span.end - self.span.start) as usize
     }
@@ -185,6 +189,22 @@ pub enum TokenKind {
     Eof,
     /// We found something that we can't tokenize
     ParseError,
+}
+
+impl TokenKind {
+    pub(crate) fn is_ending_expression(&self) -> bool {
+        matches!(
+            self,
+            Self::Eof
+                | Self::KeywordEnd
+                | Self::KeywordWend
+                | Self::KeywordLoop
+                | Self::KeywordNext
+                | Self::KeywordUntil
+                | Self::KeywordThen
+                | Self::Newline
+        )
+    }
 }
 
 #[macro_export]

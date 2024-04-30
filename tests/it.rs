@@ -294,7 +294,7 @@ fn test_lexer_if_else() {
 }
 
 #[test]
-fn test_lexer_string() {
+fn test_lexer_string_literal() {
     let input = r#""Hello, World!""#;
     let mut lexer = Lexer::new(input);
     let tokens: Vec<_> = lexer
@@ -302,7 +302,7 @@ fn test_lexer_string() {
         .into_iter()
         .filter(|t| t.kind != T![ws])
         .collect();
-    assert_tokens!(tokens, [T![string], T![EOF],]);
+    assert_tokens!(tokens, [T![string_literal], T![EOF],]);
 }
 
 #[test]
@@ -348,7 +348,7 @@ fn test_lexer_colon_separator() {
             T![:],
             T![ident],
             T![=],
-            T![string],
+            T![string_literal],
             T![EOF],
         ]
     );
@@ -504,7 +504,7 @@ fn test_lexer_while() {
             T![.],
             T![ident],
             T!['('],
-            T![string],
+            T![string_literal],
             T![')'],
             T![nl],
             T![ident],
@@ -547,20 +547,20 @@ fn test_lexer_select_case() {
             T![ident],
             T![nl],
             T![case],
-            T![string],
+            T![string_literal],
             T![nl],
             T![ident],
             T![.],
             T![ident],
-            T![string],
+            T![string_literal],
             T![nl],
             T![case],
-            T![string],
+            T![string_literal],
             T![nl],
             T![ident],
             T![.],
             T![ident],
-            T![string],
+            T![string_literal],
             T![nl],
             T![case],
             T![else],
@@ -568,7 +568,7 @@ fn test_lexer_select_case() {
             T![ident],
             T![.],
             T![ident],
-            T![string],
+            T![string_literal],
             T![nl],
             T![end],
             T![select],
@@ -591,11 +591,11 @@ fn test_lexer_string_concatenation() {
             T![ws],
             T![=],
             T![ws],
-            T![string],
+            T![string_literal],
             T![ws],
             T![&],
             T![ws],
-            T![string],
+            T![string_literal],
             T![EOF],
         ]
     );
@@ -717,7 +717,7 @@ fn test_lexer_string_with_backslash() {
             T![.],
             T![ident],
             T!['('],
-            T![string],
+            T![string_literal],
             T![')'],
             T![EOF],
         ]
@@ -895,7 +895,7 @@ fn test_lexer_full_class() {
             T![ident],
             T![.],
             T![ident],
-            T![string],
+            T![string_literal],
             T![nl],
             T![end],
             T![function],
@@ -908,6 +908,139 @@ fn test_lexer_full_class() {
         ]
     );
 }
+//
+// #[test]
+// fn parse_statements() {
+//     fn parse(input: &str) -> ast::Stmt {
+//         let mut parser = Parser::new(input);
+//         parser.statement()
+//     }
+//
+//     let stmt = parse(indoc! {r#"
+//         {
+//             let x = 7 + sin(y)
+//             {
+//                 x = 3
+//                 if (bar < 3) then
+//                     x = x + 1
+//                     y = 3 * x
+//                 else if (bar < 2) {
+//                     let i = 2!
+//                     x = x + i
+//                 else
+//                     x = 1
+//                 end if
+//             }
+//         }
+//     "#});
+//
+//     let stmts = match stmt {
+//         ast::Stmt::Block { stmts } => stmts,
+//         _ => unreachable!(),
+//     };
+//     assert_eq!(stmts.len(), 2);
+//
+//     let let_stmt = &stmts[0];
+//     match let_stmt {
+//         ast::Stmt::Set { var_name, .. } => assert_eq!(var_name, "x"),
+//         _ => unreachable!(),
+//     }
+//
+//     let stmts = match &stmts[1] {
+//         ast::Stmt::Block { stmts } => stmts,
+//         _ => unreachable!(),
+//     };
+//     assert_eq!(stmts.len(), 2);
+//
+//     let assignment_stmt = &stmts[0];
+//     match assignment_stmt {
+//         ast::Stmt::Assignment { var_name, .. } => {
+//             assert_eq!(var_name, "x");
+//         }
+//         _ => unreachable!(),
+//     }
+//
+//     let if_stmt = &stmts[1];
+//     match if_stmt {
+//         ast::Stmt::IfStmt {
+//             condition,
+//             body,
+//             else_stmt,
+//         } => {
+//             assert!(matches!(
+//                 &**condition,
+//                 ast::Expr::InfixOp {
+//                     op: T![<],
+//                     lhs: _lhs,
+//                     rhs: _rhs,
+//                 }
+//             ));
+//             assert_eq!(body.len(), 2);
+//             let x_assignment = &body[0];
+//             match x_assignment {
+//                 ast::Stmt::Assignment { var_name, .. } => assert_eq!(var_name, "x"),
+//                 _ => unreachable!(),
+//             }
+//             let y_assignment = &body[1];
+//             match y_assignment {
+//                 ast::Stmt::Assignment { var_name, .. } => assert_eq!(var_name, "y"),
+//                 _ => unreachable!(),
+//             }
+//
+//             let else_stmt = match else_stmt {
+//                 Some(stmt) => &**stmt,
+//                 None => unreachable!(),
+//             };
+//
+//             match else_stmt {
+//                 ast::Stmt::IfStmt {
+//                     condition,
+//                     body,
+//                     else_stmt,
+//                 } => {
+//                     assert!(matches!(
+//                         &**condition,
+//                         ast::Expr::InfixOp {
+//                             op: T![<],
+//                             lhs: _lhs,
+//                             rhs: _rhs,
+//                         }
+//                     ));
+//                     assert_eq!(body.len(), 2);
+//                     let let_i = &body[0];
+//                     match let_i {
+//                         ast::Stmt::Set { var_name, .. } => assert_eq!(var_name, "i"),
+//                         _ => unreachable!(),
+//                     }
+//                     let x_assignment = &body[1];
+//                     match x_assignment {
+//                         ast::Stmt::Assignment { var_name, .. } => assert_eq!(var_name, "x"),
+//                         _ => unreachable!(),
+//                     }
+//
+//                     let else_stmt = match else_stmt {
+//                         Some(stmt) => &**stmt,
+//                         None => unreachable!(),
+//                     };
+//
+//                     let stmts = match else_stmt {
+//                         ast::Stmt::Block { stmts } => stmts,
+//                         _ => unreachable!(),
+//                     };
+//                     assert_eq!(stmts.len(), 1);
+//
+//                     let x_assignment = &stmts[0];
+//                     match x_assignment {
+//                         ast::Stmt::Assignment { var_name, .. } => assert_eq!(var_name, "x"),
+//                         _ => unreachable!(),
+//                     }
+//                 }
+//                 _ => unreachable!(),
+//             };
+//         }
+//         _ => unreachable!(),
+//     }
+// }
 
 /// This test is ignored because it is slow and only useful for development.
 /// It tries to tokenize all `.vbs` files going one level lower from the root of the project.
@@ -924,14 +1057,6 @@ fn try_tokenizing_all_vbs_files() {
         let input = std::fs::read_to_string(&path).unwrap();
         let mut lexer = Lexer::new(&input);
         let tokens = lexer.tokenize();
-
-        // print all identifiers that were found
-        for token in tokens.iter() {
-            if token.kind == T![ident] {
-                let range: Range<usize> = token.span.into();
-                println!("identifier: {:?}", &input[range]);
-            }
-        }
 
         // print path and the last 10 tokens before the error if there is an error
         // and fail the test

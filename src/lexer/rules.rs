@@ -396,7 +396,7 @@ pub(crate) fn get_rules() -> Vec<Rule> {
         },
         // Regular expressions
         Rule {
-            kind: T![string],
+            kind: T![string_literal],
             matches: move |input| match_regex(input, &STRING_REGEX),
         },
         Rule {
