@@ -163,6 +163,13 @@ pub enum Stmt {
         condition: Box<Expr>,
         body: Vec<Stmt>,
     },
+    ForStmt {
+        counter: String,
+        start: Box<Expr>,
+        end: Box<Expr>,
+        step: Option<Box<Expr>>,
+        body: Vec<Stmt>,
+    },
 }
 
 impl fmt::Display for Expr {

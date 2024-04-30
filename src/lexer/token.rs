@@ -202,6 +202,8 @@ impl TokenKind {
                 | Self::KeywordNext
                 | Self::KeywordUntil
                 | Self::KeywordThen
+                | Self::KeywordTo
+                | Self::KeywordElse
                 | Self::Newline
         )
     }

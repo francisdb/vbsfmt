@@ -23,6 +23,7 @@ where
 
     pub fn statement(&mut self) -> ast::Stmt {
         match self.peek() {
+            // TODO add options
             T![nl] => {
                 // skip empty lines
                 self.consume(T![nl]);
@@ -67,7 +68,7 @@ where
 
                 self.consume(T![then]);
 
-                // TODO handle multiple statements
+                // TODO handle (multiple) else and elseif
 
                 let body = self.block(T![end]);
 
@@ -105,6 +106,35 @@ where
 
                 ast::Stmt::WhileStmt {
                     condition: Box::new(condition),
+                    body,
+                }
+            }
+            T![for] => {
+                self.consume(T![for]);
+                let counter = self.next().unwrap();
+                let counter_name = self.text(counter).to_string();
+                self.consume(T![=]);
+                let start = self.expression();
+                self.consume(T![to]);
+                let end = self.expression();
+                let step = if self.at(T![step]) {
+                    self.consume(T![step]);
+                    Some(Box::new(self.expression()))
+                } else {
+                    None
+                };
+                self.consume(T![nl]);
+
+                let body = self.block(T![next]);
+
+                self.consume(T![next]);
+                self.consume(T![nl]);
+
+                ast::Stmt::ForStmt {
+                    counter: counter_name,
+                    start: Box::new(start),
+                    end: Box::new(end),
+                    step,
                     body,
                 }
             }

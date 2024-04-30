@@ -227,4 +227,32 @@ mod test {
             }
         );
     }
+
+    #[test]
+    fn parse_simple_for_next_loop() {
+        let input = indoc! {r#"
+            For i = 1 to 10
+                x = x + i
+            Next
+        "#};
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement();
+        assert_eq!(
+            stmt,
+            ast::Stmt::ForStmt {
+                counter: "i".to_string(),
+                start: Box::new(ast::Expr::Literal(ast::Lit::Int(1))),
+                end: Box::new(ast::Expr::Literal(ast::Lit::Int(10))),
+                step: None,
+                body: vec![ast::Stmt::Assignment {
+                    var_name: "x".to_string(),
+                    value: Box::new(ast::Expr::InfixOp {
+                        op: T![+],
+                        lhs: Box::new(Ident("x".to_string())),
+                        rhs: Box::new(Ident("i".to_string())),
+                    }),
+                }],
+            }
+        );
+    }
 }
