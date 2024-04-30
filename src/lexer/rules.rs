@@ -136,12 +136,40 @@ pub(crate) fn get_rules() -> Vec<Rule> {
             matches: |input| match_two_chars(input, '=', '>'),
         },
         Rule {
+            kind: T![mod],
+            matches: |input| match_keyword(input, "mod"),
+        },
+        Rule {
+            kind: T![is],
+            matches: |input| match_keyword(input, "is"),
+        },
+        Rule {
+            kind: T![not],
+            matches: |input| match_keyword(input, "not"),
+        },
+        Rule {
             kind: T![and],
             matches: |input| match_keyword(input, "and"),
         },
         Rule {
             kind: T![or],
             matches: |input| match_keyword(input, "or"),
+        },
+        Rule {
+            kind: T![xor],
+            matches: |input| match_keyword(input, "xor"),
+        },
+        Rule {
+            kind: T![eqv],
+            matches: |input| match_keyword(input, "eqv"),
+        },
+        Rule {
+            kind: T![imp],
+            matches: |input| match_keyword(input, "imp"),
+        },
+        Rule {
+            kind: T![or],
+            matches: |input| match_keyword(input, "xor"),
         },
         Rule {
             kind: T![option],

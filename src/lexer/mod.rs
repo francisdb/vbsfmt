@@ -134,6 +134,9 @@ impl<'input> Iterator for Lexer<'input> {
 
 #[cfg(test)]
 mod test {
+    use crate::lexer::Lexer;
+    use crate::T;
+
     #[test]
     fn test_is_vbs_whitespace() {
         assert!(super::is_vbs_whitespace(&' '));
@@ -146,5 +149,42 @@ mod test {
         assert!(super::is_vbs_whitespace(&'\u{2029}'));
         assert!(!super::is_vbs_whitespace(&'\n'));
         assert!(!super::is_vbs_whitespace(&'\r'));
+    }
+
+    #[test]
+    fn tokenize_all_operators() {
+        // we can't make a difference between unary negation and subtraction at this level
+        let input = "^ * / \\ Mod + - & = <> < > <= =< >= => Is Not And Or Xor Eqv Imp";
+        let lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.map(|t| t.kind).filter(|tk| tk != &T![ws]).collect();
+        assert_eq!(
+            tokens,
+            vec![
+                T![^],
+                T![*],
+                T![/],
+                T!['\\'],
+                T![mod],
+                T![+],
+                T![-],
+                T![&],
+                T![=],
+                T![<>],
+                T![<],
+                T![>],
+                T![<=],
+                T![<=],
+                T![>=],
+                T![>=],
+                T![is],
+                T![not],
+                T![and],
+                T![or],
+                T![xor],
+                T![eqv],
+                T![imp],
+                T![EOF],
+            ]
+        );
     }
 }

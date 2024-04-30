@@ -99,6 +99,7 @@ pub enum TokenKind {
     Int,
     Float,
     Identifier,
+    KeywordMod,
     KeywordConst,
     KeywordDim,
     KeywordRedim,
@@ -115,6 +116,7 @@ pub enum TokenKind {
     KeywordPublic,
     KeywordPrivate,
     KeywordAs,
+    KeywordByRef,
     KeywordNew,
     KeywordReturn,
     KeywordFor,
@@ -139,12 +141,19 @@ pub enum TokenKind {
     Nothing,
     True,
     False,
-    // Operators
+    // Logical operators
+    Not,
     And,
     Or,
+    Xor,
+    Eqv,
+    Imp,
+    // Comparison operators
+    // = is shared with assignment
     Neq,
     Geq,
     Leq,
+    Is,
     // Misc,
     Error,
     Whitespace,
@@ -169,6 +178,9 @@ macro_rules! T {
     };
     ['\\'] => {
         $crate::lexer::TokenKind::Backslash
+    };
+    [mod] => {
+        $crate::lexer::TokenKind::KeywordMod
     };
     [^] => {
         $crate::lexer::TokenKind::Pow
@@ -256,6 +268,9 @@ macro_rules! T {
     };
     [function] => {
         $crate::lexer::TokenKind::KeywordFunction
+    };
+    [byref] => {
+        $crate::lexer::TokenKind::KeywordByRef
     };
     [call] => {
         $crate::lexer::TokenKind::KeywordCall
@@ -357,12 +372,26 @@ macro_rules! T {
     [false] => {
         $crate::lexer::TokenKind::False
     };
+    // Logical operators
+    [not] => {
+        $crate::lexer::TokenKind::Not
+    };
     [and] => {
         $crate::lexer::TokenKind::And
     };
     [or] => {
         $crate::lexer::TokenKind::Or
     };
+    [xor] => {
+        $crate::lexer::TokenKind::Xor
+    };
+    [eqv] => {
+        $crate::lexer::TokenKind::Eqv
+    };
+    [imp] => {
+        $crate::lexer::TokenKind::Imp
+    };
+    // Comparison operators
     [<>] => {
         $crate::lexer::TokenKind::Neq
     };
@@ -372,6 +401,10 @@ macro_rules! T {
     [<=] => {
         $crate::lexer::TokenKind::Leq
     };
+    [is] => {
+        $crate::lexer::TokenKind::Is
+    };
+    // Misc
     [error] => {
         $crate::lexer::TokenKind::Error
     };
@@ -417,6 +450,7 @@ impl fmt::Display for TokenKind {
                 T!['('] => "(",
                 T![')'] => ")",
                 // Multiple characters
+                T![mod] => "mod",
                 T![option] => "option",
                 T![string] => "string",
                 T![comment] => "// comment",
@@ -429,6 +463,7 @@ impl fmt::Display for TokenKind {
                 T![set] => "set",
                 T![sub] => "sub",
                 T![function] => "function",
+                T![byref] => "byref",
                 T![class] => "class",
                 T![property] => "property",
                 T![public] => "public",
@@ -463,12 +498,18 @@ impl fmt::Display for TokenKind {
                 T![nothing] => "nothing",
                 T![true] => "true",
                 T![false] => "false",
-                // Operators
+                // Logical operators
+                T![not] => "not",
                 T![and] => "and",
                 T![or] => "or",
+                T![xor] => "xor",
+                T![eqv] => "eqv",
+                T![imp] => "imp",
+                // Comparison operators
                 T![<>] => "<>",
                 T![>=] => ">=",
                 T![<=] => "<=",
+                T![is] => "is",
                 // Misc
                 T![error] => "<?>",
                 T![ws] => "<WS>",
@@ -481,6 +522,8 @@ impl fmt::Display for TokenKind {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     #[test]
     fn token_kind_display() {
         assert_eq!(T![+].to_string(), "+");
