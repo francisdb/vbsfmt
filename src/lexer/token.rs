@@ -1,8 +1,5 @@
-use clap::Parser;
 use std::fmt;
 use std::ops::{Index, Range};
-use std::string::ParseError;
-use yansi::Paint;
 
 #[derive(Eq, PartialEq, Copy, Clone, Hash)]
 pub struct Token {
