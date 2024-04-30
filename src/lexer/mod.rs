@@ -136,6 +136,7 @@ impl<'input> Iterator for Lexer<'input> {
 mod test {
     use crate::lexer::Lexer;
     use crate::T;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn test_is_vbs_whitespace() {
@@ -186,5 +187,45 @@ mod test {
                 T![EOF],
             ]
         );
+    }
+
+    #[test]
+    fn tokenize_all_types() {
+        let input = "boolean byte char date decimal double integer long short single string";
+        let lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.map(|t| t.kind).filter(|tk| tk != &T![ws]).collect();
+        assert_eq!(
+            tokens,
+            vec![
+                T![boolean],
+                T![byte],
+                T![char],
+                T![date],
+                T![decimal],
+                T![double],
+                T![integer],
+                T![long],
+                T![short],
+                T![single],
+                T![string],
+                T![EOF],
+            ]
+        );
+    }
+
+    #[test]
+    fn hex_integer_literal() {
+        let input = "&H10";
+        let lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.map(|t| t.kind).collect();
+        assert_eq!(tokens, vec![T![integer_literal], T![EOF],]);
+    }
+
+    #[test]
+    fn double_science_notation() {
+        let input = "1.401298E-45";
+        let lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.map(|t| t.kind).collect();
+        assert_eq!(tokens, vec![T![real_literal], T![EOF],]);
     }
 }

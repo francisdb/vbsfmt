@@ -287,6 +287,51 @@ pub(crate) fn get_rules() -> Vec<Rule> {
             kind: T![end],
             matches: |input| match_keyword(input, "end"),
         },
+        // Data types
+        Rule {
+            kind: T![boolean],
+            matches: |input| match_keyword(input, "boolean"),
+        },
+        Rule {
+            kind: T![byte],
+            matches: |input| match_keyword(input, "byte"),
+        },
+        Rule {
+            kind: T![char],
+            matches: |input| match_keyword(input, "char"),
+        },
+        Rule {
+            kind: T![date],
+            matches: |input| match_keyword(input, "date"),
+        },
+        Rule {
+            kind: T![decimal],
+            matches: |input| match_keyword(input, "decimal"),
+        },
+        Rule {
+            kind: T![double],
+            matches: |input| match_keyword(input, "double"),
+        },
+        Rule {
+            kind: T![integer],
+            matches: |input| match_keyword(input, "integer"),
+        },
+        Rule {
+            kind: T![long],
+            matches: |input| match_keyword(input, "long"),
+        },
+        Rule {
+            kind: T![short],
+            matches: |input| match_keyword(input, "short"),
+        },
+        Rule {
+            kind: T![single],
+            matches: |input| match_keyword(input, "single"),
+        },
+        Rule {
+            kind: T![string],
+            matches: |input| match_keyword(input, "string"),
+        },
         // Special values
         Rule {
             kind: T![empty],
@@ -321,7 +366,7 @@ pub(crate) fn get_rules() -> Vec<Rule> {
             matches: move |input| match_regex(input, &NEWLINE_REGEX),
         },
         Rule {
-            kind: T![int],
+            kind: T![integer_literal],
             matches: |input| {
                 input
                     .char_indices()
@@ -331,7 +376,21 @@ pub(crate) fn get_rules() -> Vec<Rule> {
             },
         },
         Rule {
-            kind: T![float],
+            kind: T![integer_literal],
+            matches: |input| {
+                // integers in hex notation
+                // use strip_prefix instead of starts_with to avoid allocation
+                input.strip_prefix("&H").map(|s| {
+                    s.char_indices()
+                        .take_while(|(_, c)| c.is_ascii_hexdigit())
+                        .last()
+                        .map(|(pos, _)| pos as u32 + 1 + 2) // +2 for the "&H"
+                        .unwrap_or(2) // +2 for the "&H"
+                })
+            },
+        },
+        Rule {
+            kind: T![real_literal],
             matches: |input| match_regex(input, &FLOAT_REGEX),
         },
         Rule {
