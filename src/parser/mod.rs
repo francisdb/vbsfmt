@@ -255,4 +255,50 @@ mod test {
             }
         );
     }
+
+    #[test]
+    fn parse_simple_function_declaration() {
+        let input = indoc! {r#"
+            Function add (a, b)
+                add = a + b
+            End Function
+        "#};
+        let mut parser = Parser::new(input);
+        let item = parser.item();
+        assert_eq!(
+            item,
+            ast::Item::Function {
+                name: "add".to_string(),
+                parameters: vec!["a".to_string(), "b".to_string()],
+                body: vec![ast::Stmt::Assignment {
+                    var_name: "add".to_string(),
+                    value: Box::new(ast::Expr::InfixOp {
+                        op: T![+],
+                        lhs: Box::new(Ident("a".to_string())),
+                        rhs: Box::new(Ident("b".to_string())),
+                    }),
+                }],
+            }
+        );
+    }
+
+    #[test]
+    fn parse_simple_sub_declaration() {
+        let input = indoc! {r#"
+            Sub log (a, b)
+                'print a
+                'print b
+            End Sub
+        "#};
+        let mut parser = Parser::new(input);
+        let item = parser.item();
+        assert_eq!(
+            item,
+            ast::Item::Sub {
+                name: "log".to_string(),
+                parameters: vec!["a".to_string(), "b".to_string()],
+                body: vec![],
+            }
+        );
+    }
 }

@@ -172,6 +172,33 @@ pub enum Stmt {
     },
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum Item {
+    Function {
+        name: String,
+        // TODO handle ByVal and ByRef
+        parameters: Vec<String>,
+        body: Vec<Stmt>,
+    },
+    Sub {
+        name: String,
+        // TODO handle ByVal and ByRef
+        parameters: Vec<String>,
+        body: Vec<Stmt>,
+    },
+    Class {
+        name: String,
+        properties: Vec<(String, Type)>,
+        methods: Vec<Item>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Type {
+    pub name: String,
+    pub generics: Vec<Type>,
+}
+
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
