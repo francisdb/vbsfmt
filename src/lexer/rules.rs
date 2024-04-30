@@ -184,6 +184,14 @@ pub(crate) fn get_rules() -> Vec<Rule> {
             matches: |input| match_keyword(input, "set"),
         },
         Rule {
+            kind: T![let],
+            matches: |input| match_keyword(input, "let"),
+        },
+        Rule {
+            kind: T![get],
+            matches: |input| match_keyword(input, "get"),
+        },
+        Rule {
             kind: T![sub],
             matches: |input| match_keyword(input, "sub"),
         },
@@ -196,8 +204,8 @@ pub(crate) fn get_rules() -> Vec<Rule> {
             matches: |input| match_keyword(input, "call"),
         },
         Rule {
-            kind: T![exit],
-            matches: |input| match_keyword(input, "exit"),
+            kind: T![new],
+            matches: |input| match_keyword(input, "new"),
         },
         Rule {
             kind: T![do],
@@ -266,6 +274,18 @@ pub(crate) fn get_rules() -> Vec<Rule> {
         Rule {
             kind: T![class],
             matches: |input| match_keyword(input, "class"),
+        },
+        Rule {
+            kind: T![property],
+            matches: |input| match_keyword(input, "property"),
+        },
+        Rule {
+            kind: T![public],
+            matches: |input| match_keyword(input, "public"),
+        },
+        Rule {
+            kind: T![private],
+            matches: |input| match_keyword(input, "private"),
         },
         Rule {
             kind: T![if],
@@ -353,6 +373,28 @@ pub(crate) fn get_rules() -> Vec<Rule> {
             kind: T![false],
             matches: |input| match_keyword(input, "false"),
         },
+        // Error handling
+        Rule {
+            kind: T![on],
+            matches: |input| match_keyword(input, "on"),
+        },
+        Rule {
+            kind: T![error],
+            matches: |input| match_keyword(input, "error"),
+        },
+        Rule {
+            kind: T![resume],
+            matches: |input| match_keyword(input, "resume"),
+        },
+        Rule {
+            kind: T![next],
+            matches: |input| match_keyword(input, "next"),
+        },
+        Rule {
+            kind: T![goto],
+            matches: |input| match_keyword(input, "goto"),
+        },
+        // Regular expressions
         Rule {
             kind: T![string],
             matches: move |input| match_regex(input, &STRING_REGEX),

@@ -136,6 +136,7 @@ impl<'input> Iterator for Lexer<'input> {
 mod test {
     use crate::lexer::Lexer;
     use crate::T;
+    use indoc::indoc;
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -150,6 +151,49 @@ mod test {
         assert!(super::is_vbs_whitespace(&'\u{2029}'));
         assert!(!super::is_vbs_whitespace(&'\n'));
         assert!(!super::is_vbs_whitespace(&'\r'));
+    }
+
+    #[test]
+    fn test_lexer_options() {
+        let input = indoc! {r#"
+        Option Explicit
+    "#};
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.tokenize();
+        let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
+        assert_eq!(
+            token_kinds,
+            [T![option], T![ws], T![ident], T![nl], T![EOF],]
+        );
+    }
+
+    #[test]
+    fn test_lexer_comment_with_pipe() {
+        let input = "' |\n";
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer
+            .tokenize()
+            .into_iter()
+            .filter(|t| t.kind != T![ws])
+            .collect();
+        let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
+        assert_eq!(token_kinds, [T![comment], T![nl], T![EOF],]);
+    }
+
+    #[test]
+    fn test_lexer_string_with_escaped_quotes() {
+        let input = r#"
+        str = "hello ""world"""
+    "#
+        .trim();
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer
+            .tokenize()
+            .into_iter()
+            .filter(|t| t.kind != T![ws])
+            .collect();
+        let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
+        assert_eq!(token_kinds, [T![ident], T![=], T![string], T![EOF],]);
     }
 
     #[test]
@@ -227,5 +271,31 @@ mod test {
         let lexer = Lexer::new(input);
         let tokens: Vec<_> = lexer.map(|t| t.kind).collect();
         assert_eq!(tokens, vec![T![real_literal], T![EOF],]);
+    }
+
+    #[test]
+    fn error_handling() {
+        let input = indoc! {r#"
+        on error resume next
+        On Error Goto 0
+        "#};
+        let lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.map(|t| t.kind).filter(|tk| tk != &T![ws]).collect();
+        assert_eq!(
+            tokens,
+            vec![
+                T![on],
+                T![error],
+                T![resume],
+                T![next],
+                T![nl],
+                T![on],
+                T![error],
+                T![goto],
+                T![integer_literal],
+                T![nl],
+                T![EOF],
+            ]
+        );
     }
 }

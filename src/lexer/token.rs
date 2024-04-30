@@ -1,5 +1,8 @@
+use clap::Parser;
 use std::fmt;
 use std::ops::{Index, Range};
+use std::string::ParseError;
+use yansi::Paint;
 
 #[derive(Eq, PartialEq, Copy, Clone, Hash)]
 pub struct Token {
@@ -78,6 +81,7 @@ pub enum TokenKind {
     Eq,
     Dot,
     Comma,
+    /// Line continuation
     Underscore,
     Bang,
     Ampersand,
@@ -94,11 +98,26 @@ pub enum TokenKind {
     RParen,
     // Multiple characters
     Option,
-    String,
     Comment,
-    Int,
-    Float,
     Identifier,
+    // Literals
+    // see
+    Integer,
+    Real,
+    String,
+    // Data Types, used with 'As' keyword
+    TypeBoolean,
+    TypeByte,
+    TypeChar,
+    TypeDate,
+    TypeDecimal,
+    TypeDouble,
+    TypeInteger,
+    TypeLong,
+    TypeShort,
+    TypeSingle,
+    TypeString,
+    // Keywords
     KeywordMod,
     KeywordConst,
     KeywordDim,
@@ -115,6 +134,8 @@ pub enum TokenKind {
     KeywordProperty,
     KeywordPublic,
     KeywordPrivate,
+    KeywordGet,
+    KeywordLet,
     KeywordAs,
     KeywordByRef,
     KeywordNew,
@@ -154,12 +175,19 @@ pub enum TokenKind {
     Geq,
     Leq,
     Is,
-    // Misc,
+    // Error handling
+    On,
     Error,
+    Resume,
+    // Next is already defined as a keyword
+    Goto,
+    // Misc,
     Whitespace,
     /// CRLF, LF (or CR)
     Newline,
     Eof,
+    /// We found something that we can't tokenize
+    ParseError,
 }
 
 #[macro_export]
@@ -236,18 +264,54 @@ macro_rules! T {
     [option] => {
         $crate::lexer::TokenKind::Option
     };
-    [string] => {
-        $crate::lexer::TokenKind::String
-    };
     [comment] => {
         $crate::lexer::TokenKind::Comment
     };
-    [int] => {
-        $crate::lexer::TokenKind::Int
+    // literals
+    [integer_literal] => {
+        $crate::lexer::TokenKind::Integer
     };
-    [float] => {
-        $crate::lexer::TokenKind::Float
+    [real_literal] => {
+        $crate::lexer::TokenKind::Real
     };
+    [string_literal] => {
+        $crate::lexer::TokenKind::String
+    };
+    // Data Types
+    [boolean] => {
+        $crate::lexer::TokenKind::TypeBoolean
+    };
+    [byte] => {
+        $crate::lexer::TokenKind::TypeByte
+    };
+    [char] => {
+        $crate::lexer::TokenKind::TypeChar
+    };
+    [date] => {
+        $crate::lexer::TokenKind::TypeDate
+    };
+    [decimal] => {
+        $crate::lexer::TokenKind::TypeDecimal
+    };
+    [double] => {
+        $crate::lexer::TokenKind::TypeDouble
+    };
+    [integer] => {
+        $crate::lexer::TokenKind::TypeInteger
+    };
+    [long] => {
+        $crate::lexer::TokenKind::TypeLong
+    };
+    [short] => {
+        $crate::lexer::TokenKind::TypeShort
+    };
+    [single] => {
+        $crate::lexer::TokenKind::TypeSingle
+    };
+    [string] => {
+        $crate::lexer::TokenKind::TypeString
+    };
+    // Keywords
     [ident] => {
         $crate::lexer::TokenKind::Identifier
     };
@@ -262,6 +326,12 @@ macro_rules! T {
     };
     [set] => {
         $crate::lexer::TokenKind::KeywordSet
+    };
+    [let] => {
+        $crate::lexer::TokenKind::KeywordLet
+    };
+    [get] => {
+        $crate::lexer::TokenKind::KeywordGet
     };
     [sub] => {
         $crate::lexer::TokenKind::KeywordSub
@@ -404,10 +474,20 @@ macro_rules! T {
     [is] => {
         $crate::lexer::TokenKind::Is
     };
-    // Misc
+    // Error handling
     [error] => {
         $crate::lexer::TokenKind::Error
     };
+    [resume] => {
+        $crate::lexer::TokenKind::Resume
+    };
+    [goto] => {
+        $crate::lexer::TokenKind::Goto
+    };
+    [on] => {
+        $crate::lexer::TokenKind::On
+    };
+    // Misc
     [ws] => {
         $crate::lexer::TokenKind::Whitespace
     };
@@ -416,6 +496,9 @@ macro_rules! T {
     };
     [EOF] => {
         $crate::lexer::TokenKind::Eof
+    };
+    [parse_error] => {
+        $crate::lexer::TokenKind::ParseError
     };
 }
 
@@ -452,15 +535,31 @@ impl fmt::Display for TokenKind {
                 // Multiple characters
                 T![mod] => "mod",
                 T![option] => "option",
-                T![string] => "string",
                 T![comment] => "// comment",
-                T![int] => "int",
-                T![float] => "float",
+                // literals
+                T![integer_literal] => "integer_literal",
+                T![real_literal] => "real_literal",
+                T![string_literal] => "string_literal",
+                // Data Types
+                T![boolean] => "type_boolean",
+                T![byte] => "type_byte",
+                T![char] => "type_char",
+                T![date] => "type_date",
+                T![decimal] => "type_decimal",
+                T![double] => "type_double",
+                T![integer] => "type_integer",
+                T![long] => "type_long",
+                T![short] => "type_short",
+                T![single] => "type_single",
+                T![string] => "type_string",
+                // Keywords
                 T![ident] => "identifier",
                 T![const] => "const",
                 T![dim] => "dim",
                 T![redim] => "redim",
                 T![set] => "set",
+                T![let] => "let",
+                T![get] => "get",
                 T![sub] => "sub",
                 T![function] => "function",
                 T![byref] => "byref",
@@ -510,11 +609,16 @@ impl fmt::Display for TokenKind {
                 T![>=] => ">=",
                 T![<=] => "<=",
                 T![is] => "is",
+                // Error handling
+                T![on] => "on",
+                T![error] => "error",
+                T![resume] => "resume",
+                T![goto] => "goto",
                 // Misc
-                T![error] => "<?>",
                 T![ws] => "<WS>",
                 T![nl] => "<NL>",
                 T![EOF] => "<EOF>",
+                T![parse_error] => "<?>",
             }
         )
     }
@@ -529,7 +633,7 @@ mod tests {
         assert_eq!(T![+].to_string(), "+");
         assert_eq!(T![<=].to_string(), "<=");
         assert_eq!(T![dim].to_string(), "dim");
-        assert_eq!(T![error].to_string(), "<?>");
+        assert_eq!(T![parse_error].to_string(), "<?>");
         assert_eq!(T![comment].to_string(), "// comment");
     }
 }
