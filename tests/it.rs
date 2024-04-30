@@ -733,6 +733,8 @@ fn test_lexer_comment_with_pipe() {
 /// It tries to tokenize all `.vbs` files going one level lower from the root of the project.
 /// We suggest to make sure you have https://github.com/jsm174/vpx-standalone-scripts cloned
 /// in the same directory as this project.
+///
+/// Run this test with `cargo test --release -- --nocapture --ignored try_tokenizing_all_vbs_files`
 #[test]
 #[ignore]
 fn try_tokenizing_all_vbs_files() {
