@@ -172,18 +172,25 @@ pub enum Stmt {
     },
 }
 
+// Byval and ByRef
+// https://docs.microsoft.com/en-us/dotnet/visual-basic/programming-guide/language-features/procedures/argument-passing-mechanisms
+#[derive(Debug, Clone, PartialEq)]
+pub enum Argument {
+    ByVal(String),
+    ByRef(String),
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Item {
     Function {
         name: String,
-        // TODO handle ByVal and ByRef
-        parameters: Vec<String>,
+        parameters: Vec<Argument>,
         body: Vec<Stmt>,
     },
     Sub {
         name: String,
         // TODO handle ByVal and ByRef
-        parameters: Vec<String>,
+        parameters: Vec<Argument>,
         body: Vec<Stmt>,
     },
     Class {

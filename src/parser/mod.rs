@@ -269,7 +269,10 @@ mod test {
             item,
             ast::Item::Function {
                 name: "add".to_string(),
-                parameters: vec!["a".to_string(), "b".to_string()],
+                parameters: vec![
+                    ast::Argument::ByVal("a".to_string()),
+                    ast::Argument::ByVal("b".to_string())
+                ],
                 body: vec![ast::Stmt::Assignment {
                     var_name: "add".to_string(),
                     value: Box::new(ast::Expr::InfixOp {
@@ -296,9 +299,44 @@ mod test {
             item,
             ast::Item::Sub {
                 name: "log".to_string(),
-                parameters: vec!["a".to_string(), "b".to_string()],
+                parameters: vec![
+                    ast::Argument::ByVal("a".to_string()),
+                    ast::Argument::ByVal("b".to_string())
+                ],
                 body: vec![],
             }
+        );
+    }
+
+    #[test]
+    fn parse_byval_byref() {
+        let input = indoc! {r#"
+            Sub test (ByRef a)
+                'print a
+            End Sub
+            Function test2 (ByVal a)
+                test2 = a
+            End Function
+        "#};
+        let mut parser = Parser::new(input);
+        let all = parser.file();
+        assert_eq!(
+            all,
+            vec![
+                ast::Item::Sub {
+                    name: "test".to_string(),
+                    parameters: vec![ast::Argument::ByRef("a".to_string())],
+                    body: vec![],
+                },
+                ast::Item::Function {
+                    name: "test2".to_string(),
+                    parameters: vec![ast::Argument::ByVal("a".to_string())],
+                    body: vec![ast::Stmt::Assignment {
+                        var_name: "test2".to_string(),
+                        value: Box::new(ast::Expr::Ident("a".to_string())),
+                    }],
+                },
+            ]
         );
     }
 }

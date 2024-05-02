@@ -1,5 +1,5 @@
 use crate::lexer::{Token, TokenKind};
-use crate::parser::ast::Stmt;
+use crate::parser::ast::{Argument, Stmt};
 use crate::parser::{ast, Parser};
 use crate::T;
 
@@ -108,10 +108,20 @@ where
     }
 
     /// Parse a list of parameters for a function or sub declaration.
-    fn declaration_parameter_list(&mut self, item_type: &str) -> Vec<String> {
-        let mut parameters = Vec::new();
+    fn declaration_parameter_list(&mut self, item_type: &str) -> Vec<Argument> {
+        let mut parameters: Vec<Argument> = Vec::new();
         self.consume(T!['(']);
         while !self.at(T![')']) {
+            // optional modifier
+            let modifier = if self.at(T![byval]) {
+                self.consume(T![byval]);
+                Argument::ByVal
+            } else if self.at(T![byref]) {
+                self.consume(T![byref]);
+                Argument::ByRef
+            } else {
+                Argument::ByVal
+            };
             let parameter_ident = self.next().unwrap_or_else(|| {
                 panic!(
                     "Tried to parse {} parameter, but there were no more tokens",
@@ -126,7 +136,7 @@ where
                 parameter_ident.kind
             );
             let parameter_name = self.text(parameter_ident).to_string();
-            parameters.push(parameter_name);
+            parameters.push(modifier(parameter_name));
             if self.at(T![,]) {
                 self.consume(T![,]);
             }

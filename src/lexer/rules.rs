@@ -200,6 +200,14 @@ pub(crate) fn get_rules() -> Vec<Rule> {
             matches: |input| match_keyword(input, "function"),
         },
         Rule {
+            kind: T![byval],
+            matches: |input| match_keyword(input, "byval"),
+        },
+        Rule {
+            kind: T![byref],
+            matches: |input| match_keyword(input, "byref"),
+        },
+        Rule {
             kind: T![call],
             matches: |input| match_keyword(input, "call"),
         },

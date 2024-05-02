@@ -138,6 +138,7 @@ pub enum TokenKind {
     KeywordGet,
     KeywordLet,
     KeywordAs,
+    KeywordByVal,
     KeywordByRef,
     KeywordNew,
     KeywordReturn,
@@ -357,6 +358,9 @@ macro_rules! T {
     };
     [function] => {
         $crate::lexer::TokenKind::KeywordFunction
+    };
+    [byval] => {
+        $crate::lexer::TokenKind::KeywordByVal
     };
     [byref] => {
         $crate::lexer::TokenKind::KeywordByRef
@@ -581,6 +585,7 @@ impl fmt::Display for TokenKind {
                 T![get] => "get",
                 T![sub] => "sub",
                 T![function] => "function",
+                T![byval] => "byval",
                 T![byref] => "byref",
                 T![class] => "class",
                 T![property] => "property",
