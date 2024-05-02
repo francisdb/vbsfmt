@@ -66,6 +66,7 @@ where
     }
 }
 
+/// Iterator over the tokens of the lexer, filtering out whitespace and comments.
 pub struct TokenIter<'input> {
     lexer: Lexer<'input>,
 }
@@ -338,5 +339,32 @@ mod test {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn test_parse_empty_file() {
+        let input = "";
+        let mut parser = Parser::new(input);
+        let all = parser.file();
+        assert_eq!(all, vec![]);
+    }
+
+    #[test]
+    fn test_parse_empty_file_with_newlines() {
+        let input = "\r\n\n\n\r\n";
+        let mut parser = Parser::new(input);
+        let all = parser.file();
+        assert_eq!(all, vec![]);
+    }
+
+    #[test]
+    fn test_parse_empty_file_with_comments() {
+        let input = indoc! {"
+            ' This is a comment
+
+            ' This is another comment without newline"};
+        let mut parser = Parser::new(input);
+        let all = parser.file();
+        assert_eq!(all, vec![]);
     }
 }

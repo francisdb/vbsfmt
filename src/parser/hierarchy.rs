@@ -10,6 +10,13 @@ where
     pub fn file(&mut self) -> Vec<ast::Item> {
         let mut items = Vec::new();
         while !self.at(T![EOF]) {
+            // skip empty lines
+            // TODO there are multiple places where we skip empty lines, probably we should already
+            //   do this in the TokenIter
+            if self.at(T![nl]) {
+                self.consume(T![nl]);
+                continue;
+            }
             let item = self.item();
             items.push(item);
         }

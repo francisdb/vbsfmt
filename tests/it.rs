@@ -3,6 +3,7 @@ use std::ops::Range;
 use indoc::indoc;
 use pretty_assertions::assert_eq;
 
+use vbsfmt::parser::Parser;
 use vbsfmt::{lexer::*, T};
 
 /// walks `$tokens` and compares them to the given kinds.
@@ -1071,5 +1072,25 @@ fn try_tokenizing_all_vbs_files() {
             }
             panic!("Error in file: {:?}", path);
         }
+    }
+}
+
+/// This test is ignored because it is slow and only useful for development.
+/// It tries to parse all `.vbs` files going one level lower from the root of the project.
+/// We suggest to make sure you have https://github.com/jsm174/vpx-standalone-scripts cloned
+/// in the same directory as this project.
+///
+/// Run this test with `cargo test --release -- --nocapture --ignored try_parsing_all_vbs_files`
+#[test]
+#[ignore]
+fn try_parsing_all_vbs_files() {
+    let paths = glob::glob("../**/*.vbs").unwrap().filter_map(Result::ok);
+    for path in paths {
+        println!("Tokenizing file: {:?}", path);
+        let input = std::fs::read_to_string(&path).unwrap();
+        let mut parser = Parser::new(&input);
+        let items = parser.file();
+
+        assert!(!items.is_empty())
     }
 }
