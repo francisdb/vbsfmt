@@ -170,6 +170,10 @@ pub enum Stmt {
         step: Option<Box<Expr>>,
         body: Vec<Stmt>,
     },
+    SubCall {
+        fn_name: String,
+        args: Vec<Expr>,
+    },
 }
 
 // Byval and ByRef
@@ -182,6 +186,8 @@ pub enum Argument {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Item {
+    // https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/scripting-articles/bw9t3484%28v%3Dvs.84%29
+    OptionExplicit,
     Function {
         name: String,
         parameters: Vec<Argument>,
@@ -198,6 +204,7 @@ pub enum Item {
         properties: Vec<(String, Type)>,
         methods: Vec<Item>,
     },
+    Statement(Stmt),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

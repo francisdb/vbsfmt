@@ -64,17 +64,30 @@ where
             expected, token.kind
         );
     }
+
+    /// Check if the next token is some `kind` of token and consume it.
+    pub(crate) fn consume_if_not_eof(&mut self, expected: TokenKind) {
+        if self.peek() != T![EOF] {
+            self.consume(expected);
+        }
+    }
+
+    pub(crate) fn at_new_line_or_eof(&mut self) -> bool {
+        matches!(self.peek(), T![nl] | T![EOF])
+    }
 }
 
-/// Iterator over the tokens of the lexer, filtering out whitespace and comments.
+/// Iterator over the tokens of the lexer, filtering out whitespace, empty lines and comments.
 pub struct TokenIter<'input> {
     lexer: Lexer<'input>,
+    prev_token_kind: TokenKind,
 }
 
 impl<'input> TokenIter<'input> {
     pub fn new(input: &'input str) -> Self {
         Self {
             lexer: Lexer::new(input),
+            prev_token_kind: T![nl],
         }
     }
 }
@@ -84,9 +97,16 @@ impl<'input> Iterator for TokenIter<'input> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let next_token = self.lexer.next()?;
-            if !matches!(next_token.kind, T![ws] | T![comment]) {
-                return Some(next_token);
+            let current_token = self.lexer.next()?;
+            if matches!(self.prev_token_kind, T![nl] | T![comment])
+                && matches!(current_token.kind, T![nl])
+            {
+                self.prev_token_kind = current_token.kind;
+                continue;
+            }
+            self.prev_token_kind = current_token.kind;
+            if !matches!(current_token.kind, T![ws] | T![comment]) {
+                return Some(current_token);
             } // else continue
         }
     }
@@ -342,7 +362,7 @@ mod test {
     }
 
     #[test]
-    fn test_parse_empty_file() {
+    fn test_parse_file_empty() {
         let input = "";
         let mut parser = Parser::new(input);
         let all = parser.file();
@@ -350,7 +370,7 @@ mod test {
     }
 
     #[test]
-    fn test_parse_empty_file_with_newlines() {
+    fn test_parse_file_empty_with_newlines() {
         let input = "\r\n\n\n\r\n";
         let mut parser = Parser::new(input);
         let all = parser.file();
@@ -358,7 +378,7 @@ mod test {
     }
 
     #[test]
-    fn test_parse_empty_file_with_comments() {
+    fn test_parse_file_empty_with_comments() {
         let input = indoc! {"
             ' This is a comment
 
@@ -366,5 +386,60 @@ mod test {
         let mut parser = Parser::new(input);
         let all = parser.file();
         assert_eq!(all, vec![]);
+    }
+
+    #[test]
+    fn test_parse_file_statement_with_trailing_comment() {
+        let input = indoc! {"
+            Option Explicit ' Force explicit variable declaration.
+            ' This is another comment"};
+        let mut parser = Parser::new(input);
+        let all = parser.file();
+        assert_eq!(all, vec![ast::Item::OptionExplicit,]);
+    }
+
+    #[test]
+    fn test_parse_no_arg_sub_call() {
+        let input = "SayHello";
+        let mut parser = Parser::new(input);
+        let all = parser.file();
+        assert_eq!(
+            all,
+            vec![ast::Item::Statement(ast::Stmt::SubCall {
+                fn_name: "SayHello".to_string(),
+                args: vec![],
+            }),]
+        );
+    }
+
+    #[test]
+    fn test_parse_sub_call() {
+        let input = indoc! {"
+            test
+            test 1
+            test 1, 2"
+        };
+        let mut parser = Parser::new(input);
+        let all = parser.file();
+        assert_eq!(
+            all,
+            vec![
+                ast::Item::Statement(ast::Stmt::SubCall {
+                    fn_name: "test".to_string(),
+                    args: vec![],
+                }),
+                ast::Item::Statement(ast::Stmt::SubCall {
+                    fn_name: "test".to_string(),
+                    args: vec![ast::Expr::Literal(ast::Lit::Int(1))],
+                }),
+                ast::Item::Statement(ast::Stmt::SubCall {
+                    fn_name: "test".to_string(),
+                    args: vec![
+                        ast::Expr::Literal(ast::Lit::Int(1)),
+                        ast::Expr::Literal(ast::Lit::Int(2))
+                    ],
+                }),
+            ]
+        );
     }
 }

@@ -10,13 +10,6 @@ where
     pub fn file(&mut self) -> Vec<ast::Item> {
         let mut items = Vec::new();
         while !self.at(T![EOF]) {
-            // skip empty lines
-            // TODO there are multiple places where we skip empty lines, probably we should already
-            //   do this in the TokenIter
-            if self.at(T![nl]) {
-                self.consume(T![nl]);
-                continue;
-            }
             let item = self.item();
             items.push(item);
         }
@@ -25,6 +18,22 @@ where
 
     pub fn item(&mut self) -> ast::Item {
         match self.peek() {
+            T![option] => {
+                self.consume(T![option]);
+                let explicit = self.next().expect("Expected identifier after `option`");
+                match explicit.kind {
+                    T![ident] => {
+                        assert_eq!(
+                            self.text(explicit).to_ascii_lowercase(),
+                            "explicit",
+                            "Expected `explicit` after `option`"
+                        );
+                    }
+                    _ => panic!("Expected `explicit` after `option`"),
+                }
+                self.consume_if_not_eof(T![nl]);
+                ast::Item::OptionExplicit
+            }
             T![function] => {
                 self.consume(T![function]);
 
@@ -84,33 +93,11 @@ where
                     body,
                 }
             }
-            // T![struct] => {
-            //     self.consume(T![struct]);
-            //     let mut members = Vec::new();
-            //     let name = self.type_();
-            //     self.consume(T!['{']);
-            //     while !self.at(T!['}']) {
-            //         let member_ident = self
-            //             .next()
-            //             .expect("Tried to parse struct member, but there were no more tokens");
-            //         assert_eq!(
-            //             member_ident.kind,
-            //             T![ident],
-            //             "Expected identifier as struct member, but found `{}`",
-            //             member_ident.kind
-            //         );
-            //         let member_name = self.text(member_ident).to_string();
-            //         self.consume(T![:]);
-            //         let member_type = self.type_();
-            //         members.push((member_name, member_type));
-            //         if self.at(T![,]) {
-            //             self.consume(T![,]);
-            //         }
-            //     }
-            //     self.consume(T!['}']);
-            //     ast::Item::Struct { name, members }
-            // }
-            kind => panic!("Unknown start of item: `{}`", kind),
+            _ => {
+                // this must be a statement
+                let stmt = self.statement();
+                ast::Item::Statement(stmt)
+            }
         }
     }
 
@@ -202,6 +189,7 @@ where
                 let ident = self.next().unwrap();
                 let name = self.text(ident).to_string();
                 if self.at(T![=]) {
+                    // assignment
                     self.consume(T![=]);
                     let value = self.expression();
                     self.consume(T![nl]);
@@ -209,24 +197,30 @@ where
                         var_name: name,
                         value: Box::new(value),
                     }
+                } else if self.at_new_line_or_eof() {
+                    // sub call without args
+                    self.consume_if_not_eof(T![nl]);
+                    ast::Stmt::SubCall {
+                        fn_name: name,
+                        args: Vec::new(),
+                    }
                 } else {
-                    // function call or sub call
-                    // let mut args = Vec::new();
-                    // self.consume(T!['(']);
-                    // while !self.at(T![')']) {
-                    //     let arg = self.expression();
-                    //     args.push(arg);
-                    //     if self.at(T![,]) {
-                    //         self.consume(T![,]);
-                    //     }
-                    // }
-                    // self.consume(T![')']);
-                    // self.consume(T![nl]);
-                    // ast::Expr::FunctionCall {
-                    //     fn_name: name,
-                    //     args,
-                    // }
-                    unimplemented!("Function and sub calls not implemented yet")
+                    // sub call with args
+                    let mut args = Vec::new();
+                    while !self.at(T![nl]) {
+                        let arg = self.expression();
+                        args.push(arg);
+                        if self.at(T![,]) {
+                            self.consume(T![,]);
+                        } else {
+                            break;
+                        }
+                    }
+                    self.consume_if_not_eof(T![nl]);
+                    ast::Stmt::SubCall {
+                        fn_name: name,
+                        args,
+                    }
                 }
             }
             T![if] => {
