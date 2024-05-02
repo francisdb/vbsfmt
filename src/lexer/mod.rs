@@ -1,23 +1,71 @@
+use crate::lexer::generated::LogosToken;
+use logos::Logos;
 pub use token::{Token, TokenKind};
 
 use crate::lexer::rules::{unambiguous_single_char, Rule};
 use crate::lexer::token::Span;
 use crate::T;
 
+mod generated;
 mod rules;
 mod token;
 
-// pub type Lexer<'input> = CustomLexer<'input>;
+pub type Lexer<'input> = CustomLexer<'input>;
 // //pub type Lexer<'input> = LogosLexer<'input>;
 
-pub struct Lexer<'input> {
+pub struct LogosLexer<'input> {
+    generated: logos::SpannedIter<'input, LogosToken>,
+    eof: bool,
+}
+
+impl<'input> LogosLexer<'input> {
+    pub fn new(input: &'input str) -> Self {
+        Self {
+            generated: LogosToken::lexer(input).spanned(),
+            eof: false,
+        }
+    }
+
+    pub fn tokenize(&mut self) -> Vec<Token> {
+        self.collect()
+    }
+}
+
+impl<'input> Iterator for LogosLexer<'input> {
+    type Item = Token;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.generated.next() {
+            Some((token_result, span)) => match token_result {
+                Ok(token) => Some(Token {
+                    kind: token.kind(),
+                    span: span.into(),
+                }),
+                Err(_) => Some(Token {
+                    kind: T![error],
+                    span: span.into(),
+                }),
+            },
+            None if self.eof => None,
+            None => {
+                self.eof = true;
+                Some(Token {
+                    kind: T![EOF],
+                    span: (0..0).into(),
+                })
+            }
+        }
+    }
+}
+
+pub struct CustomLexer<'input> {
     input: &'input str,
     position: u32,
     eof: bool,
     rules: Vec<Rule>,
 }
 
-impl<'input> Lexer<'input> {
+impl<'input> CustomLexer<'input> {
     pub fn new(input: &'input str) -> Self {
         Self {
             input,
