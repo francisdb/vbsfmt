@@ -1,19 +1,6 @@
 use std::fmt;
 use std::ops::{Index, Range};
 
-/*
-There are 79 reserved keywords in VBScript:
-
-And	As	Boolean	ByRef	Byte	ByVal	Call	Case	Class	Const
-Currency	Debug	Dim	Do	Double	Each	Else	ElseIf	Empty	End
-EndIf	Enum	Eqv	Event	Exit	False	For	Function	Get	GoTo
-If	Imp	Implements	In	Integer	Is	Let	Like	Long	Loop
-LSet	Me	Mod	New	Next	Not	Nothing	Null	On	Option
-Optional	Or	ParamArray	Preserve	Private	Public	RaiseEvent	ReDim	Rem	Resume
-RSet	Select	Set	Shared	Single	Static	Stop	Sub	Then	To
-True	Type	TypeOf	Until	Variant	Wend	While	With	Xor
-*/
-
 #[derive(Eq, PartialEq, Copy, Clone, Hash)]
 pub struct Token {
     pub kind: TokenKind,
@@ -93,10 +80,7 @@ pub enum TokenKind {
     Backslash,
     Pow,
     Eq,
-    Dot,
     Comma,
-    /// Line continuation
-    Underscore,
     Bang,
     Ampersand,
     Colon,
@@ -104,10 +88,6 @@ pub enum TokenKind {
     // Brackets
     LAngle,
     RAngle,
-    LSquare,
-    RSquare,
-    LBrace,
-    RBrace,
     LParen,
     RParen,
     // Multiple characters
@@ -117,20 +97,10 @@ pub enum TokenKind {
     // Literals
     // see
     Integer,
+    HexInteger,
+    OctalInteger,
     Real,
     String,
-    // Data Types, used with 'As' keyword
-    TypeBoolean,
-    TypeByte,
-    TypeChar,
-    TypeDate,
-    TypeDecimal,
-    TypeDouble,
-    TypeInteger,
-    TypeLong,
-    TypeShort,
-    TypeSingle,
-    TypeString,
     // Keywords
     KeywordMod,
     KeywordConst,
@@ -171,6 +141,10 @@ pub enum TokenKind {
     KeywordCase,
     KeywordCall,
     KeywordExit,
+    KeywordMe,
+    /// Any keywords that are reserved but not used, like "As"
+    /// see https://docs.microsoft.com/en-us/dotnet/visual-basic/language-reference/keywords/reserved-keywords
+    KeywordUnused,
     //Special values
     Empty,
     Null,
@@ -197,9 +171,12 @@ pub enum TokenKind {
     // Next is already defined as a keyword
     Goto,
     // Misc,
+    PropertyAccess,
+
     Whitespace,
     /// CRLF, LF (or CR)
     Newline,
+    LineContinuation,
     Eof,
     /// We found something that we can't tokenize
     ParseError,
@@ -249,14 +226,8 @@ macro_rules! T {
     [=] => {
         $crate::lexer::TokenKind::Eq
     };
-    [.] => {
-        $crate::lexer::TokenKind::Dot
-    };
     [,] => {
         $crate::lexer::TokenKind::Comma
-    };
-    [_] => {
-        $crate::lexer::TokenKind::Underscore
     };
     [!] => {
         $crate::lexer::TokenKind::Bang
@@ -282,12 +253,6 @@ macro_rules! T {
     [']'] => {
         $crate::lexer::TokenKind::RSquare
     };
-    ['{'] => {
-        $crate::lexer::TokenKind::LBrace
-    };
-    ['}'] => {
-        $crate::lexer::TokenKind::RBrace
-    };
     ['('] => {
         $crate::lexer::TokenKind::LParen
     };
@@ -304,45 +269,17 @@ macro_rules! T {
     [integer_literal] => {
         $crate::lexer::TokenKind::Integer
     };
+    [hex_integer_literal] => {
+        $crate::lexer::TokenKind::HexInteger
+    };
+    [octal_integer_literal] => {
+        $crate::lexer::TokenKind::OctalInteger
+    };
     [real_literal] => {
         $crate::lexer::TokenKind::Real
     };
     [string_literal] => {
         $crate::lexer::TokenKind::String
-    };
-    // Data Types
-    [boolean] => {
-        $crate::lexer::TokenKind::TypeBoolean
-    };
-    [byte] => {
-        $crate::lexer::TokenKind::TypeByte
-    };
-    [char] => {
-        $crate::lexer::TokenKind::TypeChar
-    };
-    [date] => {
-        $crate::lexer::TokenKind::TypeDate
-    };
-    [decimal] => {
-        $crate::lexer::TokenKind::TypeDecimal
-    };
-    [double] => {
-        $crate::lexer::TokenKind::TypeDouble
-    };
-    [integer] => {
-        $crate::lexer::TokenKind::TypeInteger
-    };
-    [long] => {
-        $crate::lexer::TokenKind::TypeLong
-    };
-    [short] => {
-        $crate::lexer::TokenKind::TypeShort
-    };
-    [single] => {
-        $crate::lexer::TokenKind::TypeSingle
-    };
-    [string] => {
-        $crate::lexer::TokenKind::TypeString
     };
     // Keywords
     [ident] => {
@@ -462,6 +399,12 @@ macro_rules! T {
     [exit] => {
         $crate::lexer::TokenKind::KeywordExit
     };
+    [me] => {
+        $crate::lexer::TokenKind::KeywordMe
+    };
+    [unused] => {
+        $crate::lexer::TokenKind::KeywordUnused
+    };
     // Special values
     [empty] => {
         $crate::lexer::TokenKind::Empty
@@ -524,11 +467,17 @@ macro_rules! T {
         $crate::lexer::TokenKind::On
     };
     // Misc
+    [property_access] => {
+        $crate::lexer::TokenKind::PropertyAccess
+    };
     [ws] => {
         $crate::lexer::TokenKind::Whitespace
     };
     [nl] => {
         $crate::lexer::TokenKind::Newline
+    };
+    [line_continuation] => {
+        $crate::lexer::TokenKind::LineContinuation
     };
     [EOF] => {
         $crate::lexer::TokenKind::Eof
@@ -552,9 +501,7 @@ impl fmt::Display for TokenKind {
                 T!['\\'] => "\\",
                 T![^] => "^",
                 T![=] => "=",
-                T![.] => ".",
                 T![,] => ",",
-                T![_] => "_",
                 T![!] => "!",
                 T![&] => "&",
                 T![:] => ":",
@@ -562,32 +509,19 @@ impl fmt::Display for TokenKind {
                 // Brackets
                 T![<] => "<",
                 T![>] => ">",
-                T!['['] => "[",
-                T![']'] => "]",
-                T!['{'] => "{",
-                T!['}'] => "}",
                 T!['('] => "(",
                 T![')'] => ")",
                 // Multiple characters
                 T![mod] => "mod",
+                T![me] => "me",
                 T![option] => "option",
                 T![comment] => "// comment",
                 // literals
                 T![integer_literal] => "integer_literal",
+                T![hex_integer_literal] => "hex_integer_literal",
+                T![octal_integer_literal] => "octal_integer_literal",
                 T![real_literal] => "real_literal",
                 T![string_literal] => "string_literal",
-                // Data Types
-                T![boolean] => "type_boolean",
-                T![byte] => "type_byte",
-                T![char] => "type_char",
-                T![date] => "type_date",
-                T![decimal] => "type_decimal",
-                T![double] => "type_double",
-                T![integer] => "type_integer",
-                T![long] => "type_long",
-                T![short] => "type_short",
-                T![single] => "type_single",
-                T![string] => "type_string",
                 // Keywords
                 T![ident] => "identifier",
                 T![const] => "const",
@@ -652,10 +586,13 @@ impl fmt::Display for TokenKind {
                 T![resume] => "resume",
                 T![goto] => "goto",
                 // Misc
+                T![property_access] => ".property",
                 T![ws] => "<WS>",
                 T![nl] => "<NL>",
+                T![line_continuation] => "<_>",
                 T![EOF] => "<EOF>",
                 T![parse_error] => "<?>",
+                T![unused] => "<unused_keyword>",
             }
         )
     }

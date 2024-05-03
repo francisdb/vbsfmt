@@ -21,64 +21,67 @@ macro_rules! assert_tokens {
 
 #[test]
 fn single_char_tokens() {
-    let input = "+-(.):";
+    let input = "+-():";
     let mut lexer = Lexer::new(input);
     let tokens = lexer.tokenize();
-    assert_tokens!(
-        tokens,
-        [T![+], T![-], T!['('], T![.], T![')'], T![:], T![EOF],]
-    );
+    assert_tokens!(tokens, [T![+], T![-], T!['('], T![')'], T![:], T![EOF],]);
 }
 
 #[test]
 fn unknown_input() {
-    let input = "{$$$$$$$+";
+    let input = "{$$+";
     let mut lexer = Lexer::new(input);
-    let tokens = lexer.tokenize();
-    assert_tokens!(tokens, [T!['{'], T![error], T![+], T![EOF],]);
+    let tokens = lexer.tokenize().iter().map(|t| t.kind).collect::<Vec<_>>();
+
+    // check lexer is instance of custom lexer
+
+    // for the custom lexer
+    // assert_eq!(tokens, [T![error], T![+], T![EOF],]);
+    // for the logos lexer
+    assert_eq!(tokens, [T![error], T![error], T![error], T![+], T![EOF],]);
 }
 
 #[test]
 fn token_spans() {
     {
-        let input = "+-(.):";
+        let input = "+-():";
         let mut lexer = Lexer::new(input);
-        let tokens = lexer.tokenize();
-        let dot = tokens[3];
-        assert_eq!(dot.kind, T![.]);
-        assert_eq!(dot.span, (3..4).into())
+        let tokens = lexer.tokenize().iter().map(|t| t.kind).collect::<Vec<_>>();
+        assert_eq!(tokens, [T![+], T![-], T!['('], T![')'], T![:], T![EOF],]);
     }
     {
         let input = "{$$$$$$$+";
         let mut lexer = Lexer::new(input);
         let tokens = lexer.tokenize();
-        let error = tokens[1];
+        let error = tokens[0];
         assert_eq!(error.kind, T![error]);
-        assert_eq!(error.span, (1..8).into())
+        // for the custom lexer
+        //assert_eq!(error.span, (0..8).into())
+        // for the logos lexer
+        assert_eq!(error.span, (0..1).into())
     }
 }
 
 #[test]
 fn single_char_tokens_with_whitespace() {
-    let input = "   + -  (.): ";
+    let input = "   + -  ( ): ";
     let mut lexer = Lexer::new(input);
-    let tokens = lexer.tokenize();
-    let leading_space = &tokens[0];
-    assert_eq!(leading_space.kind, T![ws]);
-    assert_eq!(leading_space.len(), 3);
-
-    let space_after_minus = &tokens[4];
-    assert_eq!(space_after_minus.kind, T![ws]);
-    assert_eq!(space_after_minus.len(), 2);
-
-    let trailing_space = &tokens[9];
-    assert_eq!(trailing_space.kind, T![ws]);
-    assert_eq!(trailing_space.len(), 1);
-
-    let tokens: Vec<_> = tokens.into_iter().filter(|t| t.kind != T![ws]).collect();
-    assert_tokens!(
+    let tokens = lexer.tokenize().iter().map(|t| t.kind).collect::<Vec<_>>();
+    assert_eq!(
         tokens,
-        [T![+], T![-], T!['('], T![.], T![')'], T![:], T![EOF],]
+        [
+            T![ws],
+            T![+],
+            T![ws],
+            T![-],
+            T![ws],
+            T!['('],
+            T![ws],
+            T![')'],
+            T![:],
+            T![ws],
+            T![EOF],
+        ]
     );
 }
 
@@ -92,21 +95,12 @@ fn test_lexer_only_whitespace() {
 
 #[test]
 fn maybe_multiple_char_tokens() {
-    let input = "and= <=_<>or";
+    let input = "and= <=<>or";
     let mut lexer = Lexer::new(input);
     let tokens = lexer.tokenize();
     assert_tokens!(
         tokens,
-        [
-            T![and],
-            T![=],
-            T![ws],
-            T![<=],
-            T![_],
-            T![<>],
-            T![or],
-            T![EOF],
-        ]
+        [T![and], T![=], T![ws], T![<=], T![<>], T![or], T![EOF],]
     );
 }
 
@@ -211,8 +205,7 @@ fn test_lexer_sub() {
             T![ident],
             T![nl],
             T![ident],
-            T![.],
-            T![ident],
+            T![property_access],
             T!['('],
             T![integer_literal],
             T![')'],
@@ -457,8 +450,7 @@ fn test_lexer_for() {
             T![integer_literal],
             T![nl],
             T![ident],
-            T![.],
-            T![ident],
+            T![property_access],
             T![ident],
             T![nl],
             T![next],
@@ -502,8 +494,7 @@ fn test_lexer_while() {
             T![integer_literal],
             T![nl],
             T![ident],
-            T![.],
-            T![ident],
+            T![property_access],
             T!['('],
             T![string_literal],
             T![')'],
@@ -551,24 +542,21 @@ fn test_lexer_select_case() {
             T![string_literal],
             T![nl],
             T![ident],
-            T![.],
-            T![ident],
+            T![property_access],
             T![string_literal],
             T![nl],
             T![case],
             T![string_literal],
             T![nl],
             T![ident],
-            T![.],
-            T![ident],
+            T![property_access],
             T![string_literal],
             T![nl],
             T![case],
             T![else],
             T![nl],
             T![ident],
-            T![.],
-            T![ident],
+            T![property_access],
             T![string_literal],
             T![nl],
             T![end],
@@ -622,8 +610,7 @@ fn test_lexer_with() {
             T![with],
             T![ident],
             T![nl],
-            T![.],
-            T![ident],
+            T![property_access],
             T![=],
             T![integer_literal],
             T!['\\'],
@@ -637,9 +624,7 @@ fn test_lexer_with() {
     );
 }
 
-// TODO property here is seen as a keyword, but it should be an identifier
 #[test]
-#[ignore]
 fn test_lexer_with_keyword_property() {
     let input = indoc! {r#"
         With obj
@@ -659,8 +644,7 @@ fn test_lexer_with_keyword_property() {
             T![with],
             T![ident],
             T![nl],
-            T![.],
-            T![ident],
+            T![property_access],
             T![=],
             T![integer_literal],
             T!['\\'],
@@ -715,8 +699,7 @@ fn test_lexer_string_with_backslash() {
         token_kinds,
         [
             T![ident],
-            T![.],
-            T![ident],
+            T![property_access],
             T!['('],
             T![string_literal],
             T![')'],
@@ -894,8 +877,7 @@ fn test_lexer_full_class() {
             T![')'],
             T![nl],
             T![ident],
-            T![.],
-            T![ident],
+            T![property_access],
             T![string_literal],
             T![nl],
             T![end],

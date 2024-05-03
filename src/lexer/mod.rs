@@ -10,8 +10,8 @@ mod generated;
 mod rules;
 mod token;
 
-pub type Lexer<'input> = CustomLexer<'input>;
-// //pub type Lexer<'input> = LogosLexer<'input>;
+//pub type Lexer<'input> = CustomLexer<'input>;
+pub type Lexer<'input> = LogosLexer<'input>;
 
 pub struct LogosLexer<'input> {
     generated: logos::SpannedIter<'input, LogosToken>,
@@ -158,7 +158,7 @@ fn is_vbs_whitespace(next: &char) -> bool {
     next.is_whitespace()
 }
 
-impl<'input> Iterator for Lexer<'input> {
+impl<'input> Iterator for CustomLexer<'input> {
     type Item = Token;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -294,35 +294,19 @@ mod test {
     }
 
     #[test]
-    fn tokenize_all_types() {
-        let input = "boolean byte char date decimal double integer long short single string";
-        let lexer = Lexer::new(input);
-        let tokens: Vec<_> = lexer.map(|t| t.kind).filter(|tk| tk != &T![ws]).collect();
-        assert_eq!(
-            tokens,
-            vec![
-                T![boolean],
-                T![byte],
-                T![char],
-                T![date],
-                T![decimal],
-                T![double],
-                T![integer],
-                T![long],
-                T![short],
-                T![single],
-                T![string],
-                T![EOF],
-            ]
-        );
-    }
-
-    #[test]
     fn hex_integer_literal() {
         let input = "&H10";
         let lexer = Lexer::new(input);
         let tokens: Vec<_> = lexer.map(|t| t.kind).collect();
-        assert_eq!(tokens, vec![T![integer_literal], T![EOF],]);
+        assert_eq!(tokens, vec![T![hex_integer_literal], T![EOF],]);
+    }
+
+    #[test]
+    fn octal_integer_literal() {
+        let input = "&O10";
+        let lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.map(|t| t.kind).collect();
+        assert_eq!(tokens, vec![T![octal_integer_literal], T![EOF],]);
     }
 
     #[test]
@@ -331,6 +315,54 @@ mod test {
         let lexer = Lexer::new(input);
         let tokens: Vec<_> = lexer.map(|t| t.kind).collect();
         assert_eq!(tokens, vec![T![real_literal], T![EOF],]);
+    }
+
+    #[test]
+    fn multi_level_property_access() {
+        let input = "obj.prop1.prop2.prop3";
+        let lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.map(|t| t.kind).collect();
+        assert_eq!(
+            tokens,
+            vec![
+                T![ident],
+                T![property_access],
+                T![property_access],
+                T![property_access],
+                T![EOF],
+            ]
+        );
+    }
+
+    #[test]
+    fn keyword_part_of_identifier() {
+        let input = indoc! {r#"
+        ' Stop comment
+        Sub stop_sequencer()
+            StopSound("metalrolling")
+        End Sub"#};
+        let lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.map(|t| t.kind).filter(|t| t != &T![ws]).collect();
+        assert_eq!(
+            tokens,
+            [
+                T![comment],
+                T![nl],
+                T![sub],
+                T![ident],
+                T!['('],
+                T![')'],
+                T![nl],
+                T![ident],
+                T!['('],
+                T![string_literal],
+                T![')'],
+                T![nl],
+                T![end],
+                T![sub],
+                T![EOF],
+            ]
+        );
     }
 
     #[test]
@@ -352,6 +384,38 @@ mod test {
                 T![on],
                 T![error],
                 T![goto],
+                T![integer_literal],
+                T![nl],
+                T![EOF],
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lexer_continuation_character() {
+        let input = indoc! {r#"
+        a = 1 _
+            + 2 _
+            + 3
+        "#};
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.tokenize();
+        let token_kinds = tokens
+            .iter()
+            .map(|t| t.kind)
+            .filter(|tk| tk != &T![ws])
+            .collect::<Vec<_>>();
+        assert_eq!(
+            token_kinds,
+            [
+                T![ident],
+                T![=],
+                T![integer_literal],
+                T![line_continuation],
+                T![+],
+                T![integer_literal],
+                T![line_continuation],
+                T![+],
                 T![integer_literal],
                 T![nl],
                 T![EOF],

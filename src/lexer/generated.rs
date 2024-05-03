@@ -4,8 +4,7 @@ use logos::Logos;
 
 #[derive(Logos, Debug, PartialEq, Eq)]
 pub(super) enum LogosToken {
-    #[token(".")]
-    Dot,
+
     #[token(":")]
     Colon,
     #[token(",")]
@@ -20,22 +19,20 @@ pub(super) enum LogosToken {
     Times,
     #[token("/")]
     Slash,
+    #[token("\\")]
+    BackSlash,
     #[token("^")]
     Pow,
     #[token("=")]
     Eq,
-    #[token("!")]
-    Or,
-    #[token("==")]
-    Eqq,
     #[token("<>")]
     Neq,
-    #[token("<=")]
+    #[regex(r#"<=|=<"#)]
     Leq,
-    #[token(">=")]
+    #[regex(r#">=|=>"#)]
     Geq,
-    #[token("_", priority = 2)]
-    Under,
+    #[token("&")]
+    Ampersand,
     // Brackets
     #[token("<")]
     LAngle,
@@ -45,19 +42,15 @@ pub(super) enum LogosToken {
     LParen,
     #[token(")")]
     RParen,
-    #[token("[")]
-    LSquare,
-    #[token("]")]
-    RSquare,
-    #[token("{")]
-    LBrace,
-    #[token("}")]
-    RBrace,
     // Constructs
-    #[regex(r#""((\\"|\\\\)|[^\\"])*""#)]
+    #[regex(r#""([^"]|"")*""#)]
     String,
     #[regex(r#"\d+"#, priority = 2)]
     Int,
+    #[regex(r#"&H[0-9A-Fa-f]+"#, priority = 2)]
+    HexInt,
+    #[regex(r#"&O[0-7]+"#, priority = 2)]
+    OctalInt,
     #[regex(r#"((\d+(\.\d+)?)|(\.\d+))([Ee](\+|-)?\d+)?"#, priority = 1)]
     Float,
     #[regex(r#"([A-Za-z]|_)([A-Za-z]|_|\d)*"#, priority = 3)]
@@ -66,14 +59,8 @@ pub(super) enum LogosToken {
     // Keywords
     #[token("and", ignore(ascii_case))]
     KwAnd,
-    #[token("as", ignore(ascii_case))]
-    KwAs,
-    #[token("boolean", ignore(ascii_case))]
-    KwBoolean,
     #[token("byref", ignore(ascii_case))]
     KwByRef,
-    #[token("byte", ignore(ascii_case))]
-    KwByte,
     #[token("byval", ignore(ascii_case))]
     KwByVal,
     #[token("call", ignore(ascii_case))]
@@ -86,15 +73,13 @@ pub(super) enum LogosToken {
     KwConst,
     #[token("currency", ignore(ascii_case))]
     KwCurrency,
-    #[token("debug", ignore(ascii_case))]
-    KwDebug,
+    // #[token("debug", ignore(ascii_case))]
+    // KwDebug,
     #[token("dim", ignore(ascii_case))]
     KwDim,
     #[token("do", ignore(ascii_case))]
     KwDo,
     #[token("double", ignore(ascii_case))]
-    KwDouble,
-    #[token("each", ignore(ascii_case))]
     KwEach,
     #[token("else", ignore(ascii_case))]
     KwElse,
@@ -104,12 +89,10 @@ pub(super) enum LogosToken {
     KwEmpty,
     #[token("end", ignore(ascii_case))]
     KwEnd,
-    #[token("endif", ignore(ascii_case))]
-    KwEndIf,
-    #[token("enum", ignore(ascii_case))]
-    KwEnum,
     #[token("eqv", ignore(ascii_case))]
     KwEqv,
+    #[token("error", ignore(ascii_case))]
+    KwError,
     #[token("event", ignore(ascii_case))]
     KwEvent,
     #[token("exit", ignore(ascii_case))]
@@ -132,16 +115,12 @@ pub(super) enum LogosToken {
     KwImplements,
     #[token("in", ignore(ascii_case))]
     KwIn,
-    #[token("integer", ignore(ascii_case))]
-    KwInteger,
     #[token("is", ignore(ascii_case))]
     KwIs,
     #[token("let", ignore(ascii_case))]
     KwLet,
     #[token("like", ignore(ascii_case))]
     KwLike,
-    #[token("long", ignore(ascii_case))]
-    KwLong,
     #[token("loop", ignore(ascii_case))]
     KwLoop,
     #[token("lset", ignore(ascii_case))]
@@ -170,18 +149,18 @@ pub(super) enum LogosToken {
     KwOr,
     #[token("paramarray", ignore(ascii_case))]
     KwParamArray,
-    #[token("preserve", ignore(ascii_case))]
-    KwPreserve,
     #[token("private", ignore(ascii_case))]
     KwPrivate,
+    #[token("property", ignore(ascii_case))]
+    KwProperty,
     #[token("public", ignore(ascii_case))]
     KwPublic,
     #[token("raiseevent", ignore(ascii_case))]
     KwRaiseEvent,
     #[token("redim", ignore(ascii_case))]
     KwReDim,
-    #[token("rem", ignore(ascii_case))]
-    KwRem,
+    // #[token("rem", ignore(ascii_case))]
+    // KwRem,
     #[token("resume", ignore(ascii_case))]
     KwResume,
     #[token("rset", ignore(ascii_case))]
@@ -196,10 +175,10 @@ pub(super) enum LogosToken {
     KwSingle,
     #[token("static", ignore(ascii_case))]
     KwStatic,
+    // In the listing I found 'step' was missing as keyword so I wonder if this
+    // should be handled in a different way.
     #[token("step", ignore(ascii_case))]
     KwStep,
-    #[token("stop", ignore(ascii_case))]
-    KwStop,
     #[token("sub", ignore(ascii_case))]
     KwSub,
     #[token("then", ignore(ascii_case))]
@@ -224,17 +203,26 @@ pub(super) enum LogosToken {
     KwWith,
     #[token("xor", ignore(ascii_case))]
     KwXor,
+    /// Represents reserved keywords but that are not actually in use
+    /// https://isvbscriptdead.com/reserved-keywords/
+    // As, Byte, Boolean, Double, Integer, Long, Single, Stop, Variant
+    #[regex(r"(?i)as|byte|boolean|double|integer|long|single|stop|variant")]
+    KwUnused,
+
+    #[regex(r"\.([A-Za-z]|_)([A-Za-z]|_|\d)*")]
+    PropertyAccess,
 
     // Misc
     #[regex(r"[ \t\f]+")]
     WS,
-    #[regex(r"[\r\n|\n|\r]")]
+    #[regex(r"\r\n|\n|\r")]
     NewLine,
+    #[regex(r" _[\r\n|\n|\r]")]
+    LineContinuation,
 
     // comments using ' or REM
     #[regex(r"'([^\r\n]*)")]
     Comment,
-
     // #[error]
     // Error,
 }
@@ -244,7 +232,6 @@ impl LogosToken {
     pub fn kind(&self) -> TokenKind {
         use LogosToken::*;
         match self {
-            Dot          => T![.],
             Colon        => T![:],
             Comma        => T![,],
             Semi         => T![;],
@@ -252,60 +239,101 @@ impl LogosToken {
             Minus        => T![-],
             Times        => T![*],
             Slash        => T![/],
+            BackSlash    => T!['\\'],
             Pow          => T![^],
             Eq           => T![=],
             Neq          => T![<>],
             Leq          => T![<=],
             Geq          => T![>=],
-            Under        => T![_],
             LAngle       => T![<],
             RAngle       => T![>],
+            Ampersand=> T![&],
             LParen       => T!['('],
             RParen       => T![')'],
-            LSquare      => T!['['],
-            RSquare      => T![']'],
-            LBrace       => T!['{'],
-            RBrace       => T!['}'],
-            String       => T![string],
+            String       => T![string_literal],
             Int          => T![integer_literal],
+            HexInt       => T![hex_integer_literal],
+            OctalInt     => T![octal_integer_literal],
             Float        => T![real_literal],
             Ident        => T![ident],
             KwAnd        => T![and],
-            KwAs         => T![as],
-            KwBoolean    => T![boolean],
             KwByRef      => T![byref],
-            KwByte       => T![byte],
             KwByVal      => T![byval],
             KwCall       => T![call],
             KwCase       => T![case],
             KwClass      => T![class],
             KwConst      => T![const],
-            // KwCurrency   => T![currency],
-            // KwDebug      => T![debug],
+            KwCurrency   => unimplemented!("KwCurrency"),
             KwDim        => T![dim],
             KwDo         => T![do],
-            KwDouble     => T![double],
             KwEach       => T![each],
+            KwElse       => T![else],
             KwElseIf     => T![elseif],
             KwEmpty      => T![empty],
-
-
-            
-            KwLet        => T![let],
-            KwIf         => T![if],
-            KwElse       => T![else],
             KwEnd        => T![end],
+            KwEqv        => T![eqv],
+            KwError      => T![error],
+            KwEvent      => unimplemented!("KwEvent"),
+            KwExit       => T![exit],
+            KwFalse      => T![false],
             KwFor        => T![for],
-            KwTo         => T![to],
-            KwStep       => T![step],
+            KwFunction   => T![function],
+            KwGet        => T![get],
+            KwGoTo       => T![goto],
+            KwIf         => T![if],
+            KwImp        => T![imp],
+            KwImplements => unimplemented!("KwImplements"),
+            KwIn         => T![in],
+            KwIs         => T![is],
+            KwLet        => T![let],
+            KwLike       => unimplemented!( "KwLike"),
+            KwLoop       => T![loop],
+            KwLSet       => unimplemented!( "KwLSet"),
+            KwMe         => T![me],
+            KwMod        => T![mod],
+            KwNew        => T![new],
             KwNext       => T![next],
-            KwWhile      => T![while],
+            KwNot        => T![not],
+            KwNothing    => T![nothing],
+            KwNull       => T![null],
+            KwOn         => T![on],
+            KwOption     => T![option],
+            KwOptional   => unimplemented!(),
+            KwOr         => T![or],
+            KwParamArray => unimplemented!( "KwParamArray"),
+            KwPrivate    => T![private],
+            KwProperty   => T![property],
+            KwPublic     => T![public],
+            KwRaiseEvent => unimplemented!( "KwRaiseEvent"),
+            KwReDim      => T![redim],
+            KwResume     => T![resume],
+            KwRSet       => unimplemented!( "KwRSet"),
+            KwSelect     => T![select],
+            KwSet        => T![set],
+            KwShared     => unimplemented!( "KwShared"),
+            KwSingle     => unimplemented!( "KwSingle"),
+            KwStatic     => unimplemented!( "KwStatic"),
+            KwStep       => T![step],
+            KwSub        => T![sub],
+            KwThen       => T![then],
+            KwTo         => T![to],
+            KwTrue       => T![true],
+            KwType       => unimplemented!("KwType"),
+            KwTypeOf     => unimplemented!( "KwTypeOf"),
+            KwUntil      => T![until],
+            KwVariant    => unimplemented!( "KwVariant"),
             KwWend       => T![wend],
-            KwFunction         => T![function],
+            KwWhile      => T![while],
+            KwWith       => T![with],
+            KwXor        => T![xor],
+            KwUnused     => T![unused],
+            
+            PropertyAccess => T![property_access],
+
             WS           => T![ws],
             Comment      => T![comment],
             NewLine      => T![nl],
-            _            => panic!("Unknown token: {:?}", self),
+            LineContinuation => T![line_continuation],
         }
     }
 }
@@ -325,7 +353,7 @@ mod test {
             .spanned()
             .map(|(res, span)| match res {
                 Ok(t) => t.kind(),
-                Err(e) => {
+                Err(_e) => {
                     let section = &input[span.start..span.end];
                     panic!(
                         "Some error occurred between char {} and {}: {}",

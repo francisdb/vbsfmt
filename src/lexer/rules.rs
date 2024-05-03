@@ -22,12 +22,7 @@ pub(crate) const fn unambiguous_single_char(c: char) -> Option<TokenKind> {
         '/' => T![/],
         '\\' => T!['\\'],
         '^' => T![^],
-        '.' => T![.],
         ',' => T![,],
-        '[' => T!['['],
-        ']' => T![']'],
-        '{' => T!['{'],
-        '}' => T!['}'],
         '(' => T!['('],
         ')' => T![')'],
         ':' => T![:],
@@ -72,6 +67,7 @@ fn match_regex(input: &str, r: &Regex) -> Option<u32> {
 lazy_static! {
     /// CRLF, LF (or CR) are all valid newline characters in VBScript.
     static ref NEWLINE_REGEX: Regex = Regex::new(r#"^(\r\n|\n|\r)"#).unwrap();
+    static ref LINE_CONTINUATION_REGEX: Regex = Regex::new(r#"^_\s*(\r\n|\n|\r)"#).unwrap();
     // There is only one kind of escape sequence in VBScript, and that is the double quote.
     // eg: "hello ""world"""
     static ref STRING_REGEX: Regex = Regex::new(r#"^"([^"]|"")*""#).unwrap();
@@ -79,6 +75,9 @@ lazy_static! {
     static ref FLOAT_REGEX: Regex =
         Regex::new(r#"^((\d+(\.\d+)?)|(\.\d+))([Ee](\+|-)?\d+)?"#).unwrap();
     static ref IDENTIFIER_REGEX: Regex = Regex::new(r##"^([A-Za-z]|_)([A-Za-z]|_|\d)*"##).unwrap();
+    static ref HEX_LITERAL_REGEX: Regex = Regex::new(r##"^&H[0-9A-Fa-f]+"##).unwrap();
+    static ref OCTAL_LITERAL_REGEX: Regex = Regex::new(r##"^&O[0-7]+"##).unwrap();
+    static ref UNUSED_KEYWORD_REGEX: Regex = Regex::new(r##"(?i)^(as|byte|boolean|double|integer|long|single|stop|variant)"##).unwrap();
 }
 
 pub(crate) fn get_rules() -> Vec<Rule> {
@@ -95,10 +94,6 @@ pub(crate) fn get_rules() -> Vec<Rule> {
         //     kind: T![/],
         //     matches: |input| match_single_char(input, '/'),
         // },
-        Rule {
-            kind: T![_],
-            matches: |input| match_single_char(input, '_'),
-        },
         Rule {
             kind: T![<],
             matches: |input| match_single_char(input, '<'),
@@ -315,51 +310,6 @@ pub(crate) fn get_rules() -> Vec<Rule> {
             kind: T![end],
             matches: |input| match_keyword(input, "end"),
         },
-        // Data types
-        Rule {
-            kind: T![boolean],
-            matches: |input| match_keyword(input, "boolean"),
-        },
-        Rule {
-            kind: T![byte],
-            matches: |input| match_keyword(input, "byte"),
-        },
-        Rule {
-            kind: T![char],
-            matches: |input| match_keyword(input, "char"),
-        },
-        Rule {
-            kind: T![date],
-            matches: |input| match_keyword(input, "date"),
-        },
-        Rule {
-            kind: T![decimal],
-            matches: |input| match_keyword(input, "decimal"),
-        },
-        Rule {
-            kind: T![double],
-            matches: |input| match_keyword(input, "double"),
-        },
-        Rule {
-            kind: T![integer],
-            matches: |input| match_keyword(input, "integer"),
-        },
-        Rule {
-            kind: T![long],
-            matches: |input| match_keyword(input, "long"),
-        },
-        Rule {
-            kind: T![short],
-            matches: |input| match_keyword(input, "short"),
-        },
-        Rule {
-            kind: T![single],
-            matches: |input| match_keyword(input, "single"),
-        },
-        Rule {
-            kind: T![string],
-            matches: |input| match_keyword(input, "string"),
-        },
         // Special values
         Rule {
             kind: T![empty],
@@ -416,6 +366,10 @@ pub(crate) fn get_rules() -> Vec<Rule> {
             matches: move |input| match_regex(input, &NEWLINE_REGEX),
         },
         Rule {
+            kind: T![line_continuation],
+            matches: move |input| match_regex(input, &LINE_CONTINUATION_REGEX),
+        },
+        Rule {
             kind: T![integer_literal],
             matches: |input| {
                 input
@@ -426,7 +380,7 @@ pub(crate) fn get_rules() -> Vec<Rule> {
             },
         },
         Rule {
-            kind: T![integer_literal],
+            kind: T![hex_integer_literal],
             matches: |input| {
                 // integers in hex notation
                 // use strip_prefix instead of starts_with to avoid allocation
@@ -440,12 +394,30 @@ pub(crate) fn get_rules() -> Vec<Rule> {
             },
         },
         Rule {
+            kind: T![octal_integer_literal],
+            matches: |input| {
+                // integers in octal notation
+                // use strip_prefix instead of starts_with to avoid allocation
+                input.strip_prefix("&O").map(|s| {
+                    s.char_indices()
+                        .take_while(|(_, c)| c.is_ascii_digit() && c < &'8')
+                        .last()
+                        .map(|(pos, _)| pos as u32 + 1 + 2) // +2 for the "&O"
+                        .unwrap_or(2) // +2 for the "&O"
+                })
+            },
+        },
+        Rule {
             kind: T![real_literal],
             matches: |input| match_regex(input, &FLOAT_REGEX),
         },
         Rule {
             kind: T![ident],
             matches: |input| match_regex(input, &IDENTIFIER_REGEX),
+        },
+        Rule {
+            kind: T![unused],
+            matches: |input| match_regex(input, &UNUSED_KEYWORD_REGEX),
         },
     ]
 }

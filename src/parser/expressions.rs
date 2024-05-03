@@ -110,7 +110,7 @@ where
                 | op @ T![>=]
                 | op @ T![not] => op,
                 T![EOF] => break,
-                T![')'] | T!['}'] | T![,] => break,
+                T![')'] | T![,] => break,
                 ending if ending.is_ending_expression() => break,
                 kind => panic!("Unknown operator: `{}`", kind),
             };
