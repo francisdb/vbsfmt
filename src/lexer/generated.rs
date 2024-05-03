@@ -4,7 +4,6 @@ use logos::Logos;
 
 #[derive(Logos, Debug, PartialEq, Eq)]
 pub(super) enum LogosToken {
-
     #[token(":")]
     Colon,
     #[token(",")]
@@ -247,7 +246,7 @@ impl LogosToken {
             Geq          => T![>=],
             LAngle       => T![<],
             RAngle       => T![>],
-            Ampersand=> T![&],
+            Ampersand    => T![&],
             LParen       => T!['('],
             RParen       => T![')'],
             String       => T![string_literal],
@@ -327,9 +326,7 @@ impl LogosToken {
             KwWith       => T![with],
             KwXor        => T![xor],
             KwUnused     => T![unused],
-            
             PropertyAccess => T![property_access],
-
             WS           => T![ws],
             Comment      => T![comment],
             NewLine      => T![nl],
