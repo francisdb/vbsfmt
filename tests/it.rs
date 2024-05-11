@@ -666,9 +666,9 @@ fn test_lexer_comments_with_different_line_endings() {
     let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
 
     // print all tokens with their string
-    for token in tokens.iter() {
-        println!("{:?} {:?}", token.kind, &input[token.span]);
-    }
+    // for token in tokens.iter() {
+    //     println!("{:?} {:?}", token.kind, &input[token.span]);
+    // }
 
     assert_eq!(
         token_kinds,
@@ -1068,7 +1068,7 @@ fn try_tokenizing_all_vbs_files() {
 fn try_parsing_all_vbs_files() {
     let paths = glob::glob("../**/*.vbs").unwrap().filter_map(Result::ok);
     for path in paths {
-        println!("Tokenizing file: {:?}", path);
+        println!("Parsing file: {}", path.display());
         let input = std::fs::read_to_string(&path).unwrap();
         let mut parser = Parser::new(&input);
         let items = parser.file();

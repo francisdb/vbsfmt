@@ -422,4 +422,37 @@ mod test {
             ]
         );
     }
+
+    #[test]
+    fn parse_two_consts_with_comments() {
+        let input = indoc! {"
+            Const x = 42 ' The answer to everything
+            Const y = 13 ' An unlucky number
+        "};
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer
+            .tokenize()
+            .iter()
+            .map(|t| t.kind)
+            .filter(|t| t != &T![ws])
+            .collect();
+        assert_eq!(
+            tokens,
+            [
+                T![const],
+                T![ident],
+                T![=],
+                T![integer_literal],
+                T![comment],
+                T![nl],
+                T![const],
+                T![ident],
+                T![=],
+                T![integer_literal],
+                T![comment],
+                T![nl],
+                T![EOF],
+            ]
+        );
+    }
 }

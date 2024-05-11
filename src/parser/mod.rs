@@ -51,7 +51,7 @@ where
 
     /// Move forward one token in the input and check
     /// that we pass the kind of token we expect.
-    pub(crate) fn consume(&mut self, expected: TokenKind) {
+    pub(crate) fn consume(&mut self, expected: TokenKind) -> Token {
         let token = self.next().unwrap_or_else(|| {
             panic!(
                 "Expected to consume `{}`, but there was no next token",
@@ -63,6 +63,7 @@ where
             "Expected to consume `{}`, but found `{}`",
             expected, token.kind
         );
+        token
     }
 
     /// Check if the next token is some `kind` of token and consume it.
@@ -72,8 +73,22 @@ where
         }
     }
 
+    pub(crate) fn consume_line_delimiter(&mut self) {
+        let peek = self.peek();
+        match peek {
+            T![EOF] => {}
+            T![nl] => {
+                self.consume(T![nl]);
+            }
+            T![:] => {
+                self.consume(T![:]);
+            }
+            _ => panic!("Expected newline or colon, but found {:?}", peek),
+        }
+    }
+
     pub(crate) fn at_new_line_or_eof(&mut self) -> bool {
-        matches!(self.peek(), T![nl] | T![EOF])
+        matches!(self.peek(), T![nl] | T![:] | T![EOF])
     }
 }
 
@@ -98,10 +113,16 @@ impl<'input> Iterator for TokenIter<'input> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let current_token = self.lexer.next()?;
-            if matches!(self.prev_token_kind, T![nl] | T![comment])
-                && matches!(current_token.kind, T![nl])
-            {
+            // skip empty lines
+            if matches!(self.prev_token_kind, T![nl]) && matches!(current_token.kind, T![nl]) {
                 self.prev_token_kind = current_token.kind;
+                continue;
+            }
+            // skip single line comments that are preceded by a newline
+            if matches!(self.prev_token_kind, T![nl]) && matches!(current_token.kind, T![comment]) {
+                // hacky way to not keep the comment newline
+                // TODO write a test case for this iterator
+                self.prev_token_kind = T![nl];
                 continue;
             }
             self.prev_token_kind = current_token.kind;
@@ -115,11 +136,13 @@ impl<'input> Iterator for TokenIter<'input> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::parser::ast::Expr::Ident;
+    use crate::parser::ast::ErrorClause::{Goto0, ResumeNext};
+    use crate::parser::ast::Stmt::OnError;
+    use crate::parser::ast::{Argument, Expr, FullIdent, Item, Lit, Stmt};
     use indoc::indoc;
     use pretty_assertions::assert_eq;
 
-    fn parse(input: &str) -> ast::Expr {
+    fn parse(input: &str) -> Expr {
         let mut parser = Parser::new(input);
         parser.expression()
     }
@@ -128,41 +151,38 @@ mod test {
     fn parse_expression() {
         // Weird spaces are to test that whitespace gets filtered out
         let expr = parse("42");
-        assert_eq!(expr, ast::Expr::Literal(ast::Lit::Int(42)));
+        assert_eq!(expr, Expr::Literal(Lit::Int(42)));
         let expr = parse("  2.7768");
-        assert_eq!(expr, ast::Expr::Literal(ast::Lit::Float(2.7768)));
+        assert_eq!(expr, Expr::Literal(Lit::Float(2.7768)));
         let expr = parse(r#""I am a String!""#);
-        assert_eq!(
-            expr,
-            ast::Expr::Literal(ast::Lit::Str("I am a String!".to_string()))
-        );
+        assert_eq!(expr, Expr::Literal(Lit::Str("I am a String!".to_string())));
         let expr = parse("foo");
-        assert_eq!(expr, ast::Expr::Ident("foo".to_string()));
+        assert_eq!(expr, ast::Expr::ident("foo"));
         let expr = parse("bar (  x, 2)");
         assert_eq!(
             expr,
-            ast::Expr::FnCall {
-                fn_name: "bar".to_string(),
+            Expr::FnCall {
+                fn_name: FullIdent::ident("bar"),
                 args: vec![
-                    ast::Expr::Ident("x".to_string()),
-                    ast::Expr::Literal(ast::Lit::Int(2)),
+                    Expr::ident("x".to_string()),
+                    Expr::Literal(ast::Lit::Int(2)),
                 ],
             }
         );
         let expr = parse("Not is_visible");
         assert_eq!(
             expr,
-            ast::Expr::PrefixOp {
+            Expr::PrefixOp {
                 op: T![not],
-                expr: Box::new(ast::Expr::Ident("is_visible".to_string())),
+                expr: Box::new(Expr::ident("is_visible".to_string())),
             }
         );
         let expr = parse("(-13)");
         assert_eq!(
             expr,
-            ast::Expr::PrefixOp {
+            Expr::PrefixOp {
                 op: T![-],
-                expr: Box::new(ast::Expr::Literal(ast::Lit::Int(13))),
+                expr: Box::new(Expr::Literal(Lit::Int(13))),
             }
         );
     }
@@ -205,16 +225,20 @@ mod test {
         let stmt = parser.statement();
         assert_eq!(
             stmt,
-            ast::Stmt::IfStmt {
-                condition: Box::new(ast::Expr::InfixOp {
+            Stmt::IfStmt {
+                condition: Box::new(Expr::InfixOp {
                     op: T![>],
-                    lhs: Box::new(Ident("x".to_string())),
-                    rhs: Box::new(ast::Expr::Literal(ast::Lit::Int(2))),
+                    lhs: Box::new(Expr::ident("x".to_string())),
+                    rhs: Box::new(Expr::Literal(Lit::Int(2))),
                 }),
-                body: vec![ast::Stmt::Assignment {
-                    var_name: "x".to_string(),
-                    value: Box::new(ast::Expr::Literal(ast::Lit::Int(4))),
+                body: vec![Stmt::Assignment {
+                    full_ident: FullIdent {
+                        name: "x".to_string(),
+                        property_accesses: vec![],
+                    },
+                    value: Box::new(Expr::Literal(Lit::Int(4))),
                 }],
+                elseif_statements: vec![],
                 else_stmt: None,
             }
         );
@@ -231,18 +255,18 @@ mod test {
         let stmt = parser.statement();
         assert_eq!(
             stmt,
-            ast::Stmt::WhileStmt {
-                condition: Box::new(ast::Expr::InfixOp {
+            Stmt::WhileStmt {
+                condition: Box::new(Expr::InfixOp {
                     op: T![<],
-                    lhs: Box::new(Ident("x".to_string())),
-                    rhs: Box::new(ast::Expr::Literal(ast::Lit::Int(5))),
+                    lhs: Box::new(Expr::ident("x")),
+                    rhs: Box::new(Expr::Literal(Lit::Int(5))),
                 }),
-                body: vec![ast::Stmt::Assignment {
-                    var_name: "x".to_string(),
-                    value: Box::new(ast::Expr::InfixOp {
+                body: vec![Stmt::Assignment {
+                    full_ident: FullIdent::ident("x"),
+                    value: Box::new(Expr::InfixOp {
                         op: T![+],
-                        lhs: Box::new(Ident("x".to_string())),
-                        rhs: Box::new(ast::Expr::Literal(ast::Lit::Int(1))),
+                        lhs: Box::new(Expr::ident("x".to_string())),
+                        rhs: Box::new(Expr::Literal(Lit::Int(1))),
                     }),
                 },],
             }
@@ -260,17 +284,17 @@ mod test {
         let stmt = parser.statement();
         assert_eq!(
             stmt,
-            ast::Stmt::ForStmt {
+            Stmt::ForStmt {
                 counter: "i".to_string(),
-                start: Box::new(ast::Expr::Literal(ast::Lit::Int(1))),
-                end: Box::new(ast::Expr::Literal(ast::Lit::Int(10))),
+                start: Box::new(Expr::Literal(Lit::Int(1))),
+                end: Box::new(Expr::Literal(Lit::Int(10))),
                 step: None,
-                body: vec![ast::Stmt::Assignment {
-                    var_name: "x".to_string(),
-                    value: Box::new(ast::Expr::InfixOp {
+                body: vec![Stmt::Assignment {
+                    full_ident: FullIdent::ident("x"),
+                    value: Box::new(Expr::InfixOp {
                         op: T![+],
-                        lhs: Box::new(Ident("x".to_string())),
-                        rhs: Box::new(Ident("i".to_string())),
+                        lhs: Box::new(Expr::ident("x".to_string())),
+                        rhs: Box::new(Expr::ident("i".to_string())),
                     }),
                 }],
             }
@@ -288,18 +312,21 @@ mod test {
         let item = parser.item();
         assert_eq!(
             item,
-            ast::Item::Function {
+            Item::Function {
                 name: "add".to_string(),
                 parameters: vec![
-                    ast::Argument::ByVal("a".to_string()),
-                    ast::Argument::ByVal("b".to_string())
+                    Argument::ByVal("a".to_string()),
+                    Argument::ByVal("b".to_string())
                 ],
-                body: vec![ast::Stmt::Assignment {
-                    var_name: "add".to_string(),
-                    value: Box::new(ast::Expr::InfixOp {
+                body: vec![Stmt::Assignment {
+                    full_ident: FullIdent {
+                        name: "add".to_string(),
+                        property_accesses: vec![],
+                    },
+                    value: Box::new(Expr::InfixOp {
                         op: T![+],
-                        lhs: Box::new(Ident("a".to_string())),
-                        rhs: Box::new(Ident("b".to_string())),
+                        lhs: Box::new(Expr::ident("a")),
+                        rhs: Box::new(Expr::ident("b")),
                     }),
                 }],
             }
@@ -318,11 +345,11 @@ mod test {
         let item = parser.item();
         assert_eq!(
             item,
-            ast::Item::Sub {
+            Item::Sub {
                 name: "log".to_string(),
                 parameters: vec![
-                    ast::Argument::ByVal("a".to_string()),
-                    ast::Argument::ByVal("b".to_string())
+                    Argument::ByVal("a".to_string()),
+                    Argument::ByVal("b".to_string())
                 ],
                 body: vec![],
             }
@@ -344,17 +371,17 @@ mod test {
         assert_eq!(
             all,
             vec![
-                ast::Item::Sub {
+                Item::Sub {
                     name: "test".to_string(),
-                    parameters: vec![ast::Argument::ByRef("a".to_string())],
+                    parameters: vec![Argument::ByRef("a".to_string())],
                     body: vec![],
                 },
-                ast::Item::Function {
+                Item::Function {
                     name: "test2".to_string(),
-                    parameters: vec![ast::Argument::ByVal("a".to_string())],
-                    body: vec![ast::Stmt::Assignment {
-                        var_name: "test2".to_string(),
-                        value: Box::new(ast::Expr::Ident("a".to_string())),
+                    parameters: vec![Argument::ByVal("a".to_string())],
+                    body: vec![Stmt::Assignment {
+                        full_ident: FullIdent::ident("test2"),
+                        value: Box::new(Expr::ident("a".to_string())),
                     }],
                 },
             ]
@@ -395,7 +422,7 @@ mod test {
             ' This is another comment"};
         let mut parser = Parser::new(input);
         let all = parser.file();
-        assert_eq!(all, vec![ast::Item::OptionExplicit,]);
+        assert_eq!(all, vec![Item::OptionExplicit,]);
     }
 
     #[test]
@@ -405,8 +432,8 @@ mod test {
         let all = parser.file();
         assert_eq!(
             all,
-            vec![ast::Item::Statement(ast::Stmt::SubCall {
-                fn_name: "SayHello".to_string(),
+            vec![Item::Statement(Stmt::SubCall {
+                fn_name: FullIdent::ident("SayHello"),
                 args: vec![],
             }),]
         );
@@ -424,22 +451,289 @@ mod test {
         assert_eq!(
             all,
             vec![
-                ast::Item::Statement(ast::Stmt::SubCall {
-                    fn_name: "test".to_string(),
+                Item::Statement(Stmt::SubCall {
+                    fn_name: FullIdent::ident("test"),
                     args: vec![],
                 }),
-                ast::Item::Statement(ast::Stmt::SubCall {
-                    fn_name: "test".to_string(),
-                    args: vec![ast::Expr::Literal(ast::Lit::Int(1))],
+                Item::Statement(Stmt::SubCall {
+                    fn_name: FullIdent::ident("test"),
+                    args: vec![Expr::Literal(Lit::Int(1))],
                 }),
-                ast::Item::Statement(ast::Stmt::SubCall {
-                    fn_name: "test".to_string(),
-                    args: vec![
-                        ast::Expr::Literal(ast::Lit::Int(1)),
-                        ast::Expr::Literal(ast::Lit::Int(2))
-                    ],
+                Item::Statement(Stmt::SubCall {
+                    fn_name: FullIdent::ident("test"),
+                    args: vec![Expr::Literal(Lit::Int(1)), Expr::Literal(Lit::Int(2))],
                 }),
             ]
+        );
+    }
+
+    #[test]
+    fn test_parse_error_handling() {
+        let input = indoc! {"
+            On Error Resume Next
+            On Error GoTo 0
+        "};
+        let mut parser = Parser::new(input);
+        let all = parser.file();
+        assert_eq!(
+            all,
+            vec![
+                Item::Statement(OnError {
+                    error_clause: ResumeNext
+                }),
+                Item::Statement(OnError {
+                    error_clause: Goto0
+                }),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_single_line_if() {
+        let input = r#"If Err Then MsgBox "Oh noes""#;
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement();
+        assert_eq!(
+            stmt,
+            Stmt::IfStmt {
+                condition: Box::new(Expr::ident("Err".to_string())),
+                body: vec![Stmt::SubCall {
+                    fn_name: FullIdent::ident("MsgBox"),
+                    args: vec![Expr::Literal(Lit::Str("Oh noes".to_string()))],
+                }],
+                elseif_statements: vec![],
+                else_stmt: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_single_line_if_multi_statement() {
+        let input = r#"If Err Then MsgBox "Oh noes": MsgBox "Crash""#;
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement();
+        assert_eq!(
+            stmt,
+            Stmt::IfStmt {
+                condition: Box::new(Expr::ident("Err".to_string())),
+                body: vec![
+                    Stmt::SubCall {
+                        fn_name: FullIdent::ident("MsgBox"),
+                        args: vec![Expr::Literal(Lit::Str("Oh noes".to_string()))],
+                    },
+                    Stmt::SubCall {
+                        fn_name: FullIdent::ident("MsgBox"),
+                        args: vec![Expr::Literal(Lit::Str("Crash".to_string()))],
+                    }
+                ],
+                elseif_statements: vec![],
+                else_stmt: None,
+            }
+        );
+    }
+
+    #[test]
+    fn parse_dim() {
+        let input = "Dim x";
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement();
+        assert_eq!(stmt, Stmt::dim("x"));
+    }
+
+    #[test]
+    fn test_dim_array() {
+        let input = "Dim x(1, 2)";
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement();
+        assert_eq!(
+            stmt,
+            Stmt::Dim {
+                vars: vec![(
+                    "x".to_string(),
+                    vec![Expr::Literal(Lit::Int(1)), Expr::Literal(Lit::Int(2))]
+                )],
+            }
+        );
+    }
+
+    #[test]
+    fn test_dim_array_with_space() {
+        let input = "Dim PlayerMode (2)";
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement();
+        assert_eq!(
+            stmt,
+            Stmt::Dim {
+                vars: vec![("PlayerMode".to_string(), vec![Expr::Literal(Lit::Int(2))])],
+            }
+        );
+    }
+
+    #[test]
+    fn parse_dim_multiple() {
+        let input = "Dim x,y, z(1 + 3)";
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement();
+        assert_eq!(
+            stmt,
+            Stmt::Dim {
+                vars: vec![
+                    ("x".to_string(), vec![]),
+                    ("y".to_string(), vec![]),
+                    (
+                        "z".to_string(),
+                        vec![Expr::InfixOp {
+                            op: T![+],
+                            lhs: Box::new(Expr::Literal(Lit::Int(1))),
+                            rhs: Box::new(Expr::Literal(Lit::Int(3))),
+                        }]
+                    ),
+                ],
+            }
+        );
+    }
+
+    #[test]
+    fn parse_const() {
+        let input = "Const x = 42";
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement();
+        assert_eq!(
+            stmt,
+            Stmt::Const {
+                var_name: "x".to_string(),
+                value: Box::new(Expr::Literal(Lit::Int(42))),
+            }
+        );
+    }
+
+    #[test]
+    fn parse_two_consts_with_comments() {
+        let input = indoc! {"
+            Const x = 42 ' The answer to everything
+            Const y = 13 ' An unlucky number
+        "};
+        let mut parser = Parser::new(input);
+        let all = parser.file();
+        assert_eq!(
+            all,
+            vec![
+                Item::Statement(Stmt::Const {
+                    var_name: "x".to_string(),
+                    value: Box::new(Expr::Literal(Lit::Int(42))),
+                }),
+                Item::Statement(Stmt::Const {
+                    var_name: "y".to_string(),
+                    value: Box::new(Expr::Literal(Lit::Int(13))),
+                }),
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_true_false() {
+        let input = indoc! {r#"
+            Const Test = False
+            Const Test2 = True
+        "#};
+        let mut parser = Parser::new(input);
+        let all = parser.file();
+        assert_eq!(
+            all,
+            vec![
+                Item::Statement(Stmt::Const {
+                    var_name: "Test".to_string(),
+                    value: Box::new(Expr::Literal(Lit::Bool(false))),
+                }),
+                Item::Statement(Stmt::Const {
+                    var_name: "Test2".to_string(),
+                    value: Box::new(Expr::Literal(Lit::Bool(true))),
+                }),
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_block_with_colons() {
+        let input = indoc! {r#"
+            Dim test
+            If RenderingMode = 2 Then
+                test = 1 : startcontroller
+            elseif RenderingMode = 3 Then
+                test = 2 : startcontroller
+            else
+                test = 0
+            End If
+        "#};
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![
+                Item::Statement(Stmt::dim("test")),
+                Item::Statement(Stmt::IfStmt {
+                    condition: Box::new(Expr::InfixOp {
+                        op: T![=],
+                        lhs: Box::new(Expr::ident("RenderingMode")),
+                        rhs: Box::new(Expr::Literal(Lit::Int(2))),
+                    }),
+                    body: vec![
+                        Stmt::Assignment {
+                            full_ident: FullIdent::ident("test"),
+                            value: Box::new(Expr::Literal(Lit::Int(1))),
+                        },
+                        Stmt::SubCall {
+                            fn_name: FullIdent::ident("startcontroller"),
+                            args: vec![],
+                        }
+                    ],
+                    elseif_statements: vec![(
+                        Box::new(Expr::InfixOp {
+                            op: T![=],
+                            lhs: Box::new(Expr::ident("RenderingMode")),
+                            rhs: Box::new(Expr::Literal(Lit::Int(3))),
+                        }),
+                        vec![
+                            Stmt::Assignment {
+                                full_ident: FullIdent::ident("test"),
+                                value: Box::new(Expr::Literal(Lit::Int(2))),
+                            },
+                            Stmt::SubCall {
+                                fn_name: FullIdent::ident("startcontroller"),
+                                args: vec![],
+                            }
+                        ]
+                    )],
+                    else_stmt: Some(vec![Stmt::Assignment {
+                        full_ident: FullIdent::ident("test"),
+                        value: Box::new(Expr::Literal(Lit::Int(0))),
+                    }]),
+                }),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_assignment_with_property_in_expression() {
+        let input = "foo.a = foo.b-120.5";
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::Assignment {
+                full_ident: FullIdent {
+                    name: "foo".to_string(),
+                    property_accesses: vec!["a".to_string()],
+                },
+                value: Box::new(Expr::InfixOp {
+                    op: T![-],
+                    lhs: Box::new(Expr::Ident(FullIdent {
+                        name: "foo".to_string(),
+                        property_accesses: vec!["b".to_string()],
+                    })),
+                    rhs: Box::new(Expr::Literal(Lit::Float(120.5))),
+                }),
+            })]
         );
     }
 }

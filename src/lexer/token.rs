@@ -196,6 +196,8 @@ impl TokenKind {
                 | Self::KeywordTo
                 | Self::KeywordElse
                 | Self::Newline
+                | Self::Colon
+                | Self::Comment
         )
     }
 }

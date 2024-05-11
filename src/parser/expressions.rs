@@ -1,6 +1,7 @@
 // In parser/expressions.rs
 
 use crate::lexer::{Token, TokenKind};
+use crate::parser::ast::Lit;
 use crate::parser::{ast, Parser};
 use crate::T;
 
@@ -14,7 +15,11 @@ where
 
     pub fn parse_expression(&mut self, binding_power: u8) -> ast::Expr {
         let mut lhs = match self.peek() {
-            lit @ T![integer_literal] | lit @ T![real_literal] | lit @ T![string_literal] => {
+            lit @ T![integer_literal]
+            | lit @ T![real_literal]
+            | lit @ T![string_literal]
+            | lit @ T![true]
+            | lit @ T![false] => {
                 let literal_text = {
                     // the calls on `self` need to be split, because `next` takes
                     // `&mut self` if `peek` is not `T![EOF]`, then there must be
@@ -30,30 +35,46 @@ where
                             panic!("invalid integer literal: `{literal_text}`")
                         }))
                     }
-                    T![real_literal] => {
-                        ast::Lit::Float(literal_text.parse().unwrap_or_else(|_| {
-                            panic!("invalid floating point literal: `{literal_text}`")
-                        }))
-                    }
-                    T![string_literal] => ast::Lit::Str(
+                    T![real_literal] => Lit::Float(literal_text.parse().unwrap_or_else(|_| {
+                        panic!("invalid floating point literal: `{literal_text}`")
+                    })),
+                    T![string_literal] => Lit::Str(
                         // trim the quotation marks
                         literal_text[1..(literal_text.len() - 1)].to_string(),
                     ),
+                    T![true] => Lit::Bool(true),
+                    T![false] => Lit::Bool(false),
                     _ => unreachable!(),
                 };
                 ast::Expr::Literal(lit)
             }
             T![ident] => {
-                let name = {
-                    let ident_token = self.next().unwrap();
-                    self.text(ident_token).to_string() // <- now we need a copy
-                };
+                let full_ident = self.ident_deep();
+                // let name = {
+                //     let ident_token = self.next().unwrap();
+                //     self.text(ident_token).to_string() // <- now we need a copy
+                // };
+                // let property_accesses = Vec::new();
+                // while self.at(T![property_access]) {
+                //     // property access
+                //     self.consume(T![.]);
+                //     while self.at(T![ident]) {
+                //         let property_name = {
+                //             let ident_token = self.next().unwrap();
+                //             self.text(ident_token).to_string()
+                //         };
+                //         property_accesses.push(property_name);
+                //         if self.at(T![.]) {
+                //             self.consume(T![.]);
+                //         }
+                //     }
+                // }
                 if !self.at(T!['(']) {
                     // plain identifier or sub call
 
                     // TODO handle sub call
 
-                    ast::Expr::Ident(name)
+                    ast::Expr::Ident(full_ident)
                 } else {
                     //  function call
                     let mut args = Vec::new();
@@ -67,7 +88,7 @@ where
                     }
                     self.consume(T![')']);
                     ast::Expr::FnCall {
-                        fn_name: name,
+                        fn_name: full_ident,
                         args,
                     }
                 }
