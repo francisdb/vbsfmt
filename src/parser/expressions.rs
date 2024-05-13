@@ -110,6 +110,7 @@ where
                 | op @ T![*]
                 | op @ T![/]
                 | op @ T!['\\']
+                | op @ T![mod]
                 | op @ T![^]
                 | op @ T![=]
                 | op @ T![<>]
@@ -216,7 +217,7 @@ impl Operator for TokenKind {
             T![=] | T![<>] | T![is] => (5, 6),
             T![<] | T![>] | T![<=] | T![>=] => (7, 8),
             T![+] | T![-] | T![&] => (9, 10),
-            T![*] | T![/] | T!['\\'] => (11, 12),
+            T![*] | T![/] | T!['\\'] | T![mod] => (11, 12),
             T![^] => (22, 21), // <- This binds stronger to the left!
             _ => return None,
         };

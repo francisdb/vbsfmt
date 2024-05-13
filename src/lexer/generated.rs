@@ -144,8 +144,8 @@ pub(super) enum LogosToken {
     KwLSet,
     #[token("me", ignore(ascii_case))]
     KwMe,
-    #[token("mod", ignore(ascii_case))]
-    KwMod,
+    #[token("mod", word_callback, ignore(ascii_case))]
+    KwMod((usize, usize)),
     #[token("new", ignore(ascii_case))]
     KwNew,
     #[token("next", ignore(ascii_case))]
@@ -252,6 +252,7 @@ impl LogosToken {
             Colon((line, column)) => (*line, *column),
             Ident((line, column)) => (*line, *column),
             KwEmpty((line, column)) => (*line, *column),
+            KwMod((line, column)) => (*line, *column),
             KwSelect((line, column)) => (*line, *column),
             KwSub((line, column)) => (*line, *column),
             KwIs((line, column)) => (*line, *column),
@@ -326,7 +327,7 @@ impl LogosToken {
             KwLoop       => T![loop],
             KwLSet       => unimplemented!( "KwLSet"),
             KwMe         => T![me],
-            KwMod        => T![mod],
+            KwMod(_)     => T![mod],
             KwNew        => T![new],
             KwNext       => T![next],
             KwNot        => T![not],
