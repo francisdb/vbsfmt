@@ -395,6 +395,63 @@ Const a = 1			' some info
     }
 
     #[test]
+    fn parse_foreach_multiline() {
+        let input = indoc! {r#"
+            For each dog in dogs
+                dog.visible = true
+            Next
+        "#};
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(
+            stmt,
+            Stmt::ForEachStmt {
+                element: "dog".to_string(),
+                group: Box::new(Expr::ident("dogs".to_string())),
+                body: vec![Stmt::Assignment {
+                    full_ident: FullIdent {
+                        base: IdentPart::ident("dog"),
+                        property_accesses: vec![IdentPart::ident("visible")],
+                    },
+                    value: Box::new(Expr::Literal(Lit::Bool(true))),
+                }],
+            }
+        );
+    }
+
+    #[test]
+    fn parse_foreach_inline() {
+        let input = indoc! {r#"
+            For each dog in dogs : dog.volume = 0 : dog.visible = true : Next
+        "#};
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(
+            stmt,
+            Stmt::ForEachStmt {
+                element: "dog".to_string(),
+                group: Box::new(Expr::ident("dogs".to_string())),
+                body: vec![
+                    Stmt::Assignment {
+                        full_ident: FullIdent {
+                            base: IdentPart::ident("dog"),
+                            property_accesses: vec![IdentPart::ident("volume")],
+                        },
+                        value: Box::new(Expr::Literal(Lit::Int(0))),
+                    },
+                    Stmt::Assignment {
+                        full_ident: FullIdent {
+                            base: IdentPart::ident("dog"),
+                            property_accesses: vec![IdentPart::ident("visible")],
+                        },
+                        value: Box::new(Expr::Literal(Lit::Bool(true))),
+                    },
+                ],
+            }
+        );
+    }
+
+    #[test]
     fn parse_simple_function_declaration() {
         let input = indoc! {r#"
             Function add (a, b)
@@ -636,6 +693,32 @@ Const a = 1			' some info
                 ],
                 elseif_statements: vec![],
                 else_stmt: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_if_single_line_with_else() {
+        let input = r#"If x > 2 Then y = 3 Else y = 4"#;
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(
+            stmt,
+            Stmt::IfStmt {
+                condition: Box::new(Expr::InfixOp {
+                    op: T![>],
+                    lhs: Box::new(Expr::ident("x".to_string())),
+                    rhs: Box::new(Expr::Literal(Lit::Int(2))),
+                }),
+                body: vec![Stmt::Assignment {
+                    full_ident: FullIdent::ident("y"),
+                    value: Box::new(Expr::Literal(Lit::Int(3))),
+                }],
+                elseif_statements: vec![],
+                else_stmt: Some(vec![Stmt::Assignment {
+                    full_ident: FullIdent::ident("y"),
+                    value: Box::new(Expr::Literal(Lit::Int(4))),
+                }]),
             }
         );
     }

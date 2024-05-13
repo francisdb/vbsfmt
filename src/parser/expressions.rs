@@ -20,7 +20,8 @@ where
             | lit @ T![string_literal]
             | lit @ T![true]
             | lit @ T![false]
-            | lit @ T![nothing] => {
+            | lit @ T![nothing]
+            | lit @ T![empty] => {
                 let literal_text = {
                     // the calls on `self` need to be split, because `next` takes
                     // `&mut self` if `peek` is not `T![EOF]`, then there must be
@@ -46,6 +47,7 @@ where
                     T![true] => Lit::Bool(true),
                     T![false] => Lit::Bool(false),
                     T![nothing] => Lit::Nothing,
+                    T![empty] => Lit::Empty,
                     _ => unreachable!(),
                 };
                 ast::Expr::Literal(lit)
@@ -118,7 +120,8 @@ where
                 | op @ T![<=]
                 | op @ T![>]
                 | op @ T![>=]
-                | op @ T![not] => op,
+                | op @ T![not]
+                | op @ T![&] => op,
                 T![EOF] => break,
                 T![')'] | T![,] => break,
                 ending if ending.is_ending_expression() => break,
@@ -212,7 +215,7 @@ impl Operator for TokenKind {
             T![and] => (3, 4),
             T![=] | T![<>] | T![is] => (5, 6),
             T![<] | T![>] | T![<=] | T![>=] => (7, 8),
-            T![+] | T![-] => (9, 10),
+            T![+] | T![-] | T![&] => (9, 10),
             T![*] | T![/] | T!['\\'] => (11, 12),
             T![^] => (22, 21), // <- This binds stronger to the left!
             _ => return None,
@@ -310,6 +313,25 @@ mod test {
                     base: ast::IdentPart::ident("varValue2"),
                     property_accesses: Vec::new(),
                 })),
+            }
+        );
+    }
+
+    #[test]
+    fn test_expression_string_concatenation() {
+        let input = r#""Hello" & " " & name"#;
+        let mut parser = Parser::new(input);
+        let expr = parser.expression();
+        assert_eq!(
+            expr,
+            ast::Expr::InfixOp {
+                op: T![&],
+                lhs: Box::new(ast::Expr::InfixOp {
+                    op: T![&],
+                    lhs: Box::new(Literal(Lit::str("Hello"))),
+                    rhs: Box::new(Literal(Lit::str(" "))),
+                }),
+                rhs: Box::new(ast::Expr::IdentFnSubCall(ast::FullIdent::ident("name"))),
             }
         );
     }

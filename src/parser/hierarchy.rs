@@ -331,7 +331,7 @@ where
                     if self.at(T![else]) {
                         self.consume(T![else]);
 
-                        let block = self.block(&[T![end]]);
+                        let block = self.block(&[T![end], T![nl], T![EOF]]);
 
                         Stmt::IfStmt {
                             condition: Box::new(condition),
@@ -344,7 +344,7 @@ where
                         let condition = self.expression();
                         self.consume(T![then]);
 
-                        let block = self.block(&[T![end]]);
+                        let block = self.block(&[T![end], T![else], T![nl], T![EOF]]);
 
                         Stmt::IfStmt {
                             condition: Box::new(condition),
@@ -378,30 +378,50 @@ where
             }
             T![for] => {
                 self.consume(T![for]);
-                let counter = self.next().unwrap();
-                let counter_name = self.text(&counter).to_string();
-                self.consume(T![=]);
-                let start = self.expression();
-                self.consume(T![to]);
-                let end = self.expression();
-                let step = if self.at(T![step]) {
-                    self.consume(T![step]);
-                    Some(Box::new(self.expression()))
+
+                if self.at(T![each]) {
+                    self.consume(T![each]);
+                    let element = self.next().unwrap();
+                    let element_name = self.text(&element).to_string();
+                    self.consume(T![in]);
+                    let group = Box::new(self.expression());
+                    self.consume_line_delimiter();
+
+                    let body = self.block(&[T![next]]);
+
+                    self.consume(T![next]);
+
+                    Stmt::ForEachStmt {
+                        element: element_name,
+                        group,
+                        body,
+                    }
                 } else {
-                    None
-                };
-                self.consume(T![nl]);
+                    let counter = self.next().unwrap();
+                    let counter_name = self.text(&counter).to_string();
+                    self.consume(T![=]);
+                    let start = self.expression();
+                    self.consume(T![to]);
+                    let end = self.expression();
+                    let step = if self.at(T![step]) {
+                        self.consume(T![step]);
+                        Some(Box::new(self.expression()))
+                    } else {
+                        None
+                    };
+                    self.consume(T![nl]);
 
-                let body = self.block(&[T![next]]);
+                    let body = self.block(&[T![next]]);
 
-                self.consume(T![next]);
+                    self.consume(T![next]);
 
-                Stmt::ForStmt {
-                    counter: counter_name,
-                    start: Box::new(start),
-                    end: Box::new(end),
-                    step,
-                    body,
+                    Stmt::ForStmt {
+                        counter: counter_name,
+                        start: Box::new(start),
+                        end: Box::new(end),
+                        step,
+                        body,
+                    }
                 }
             }
             T![select] => {
@@ -469,11 +489,28 @@ where
             }
             T![exit] => {
                 self.consume(T![exit]);
-                if self.at(T![for]) {
-                    self.consume(T![for]);
-                    Stmt::ExitFor
-                } else {
-                    panic!("Exit only implemented for `for`")
+                match self.peek() {
+                    T![do] => {
+                        self.consume(T![do]);
+                        Stmt::ExitDo
+                    }
+                    T![for] => {
+                        self.consume(T![for]);
+                        Stmt::ExitFor
+                    }
+                    T![function] => {
+                        self.consume(T![function]);
+                        Stmt::ExitFunction
+                    }
+                    T![property] => {
+                        self.consume(T![property]);
+                        Stmt::ExitProperty
+                    }
+                    T![sub] => {
+                        self.consume(T![sub]);
+                        Stmt::ExitSub
+                    }
+                    other => panic!("Exit not supported for {}", other),
                 }
             }
             kind => {

@@ -96,14 +96,14 @@ pub(super) enum LogosToken {
     KwDim,
     #[token("do", ignore(ascii_case))]
     KwDo,
-    #[token("double", ignore(ascii_case))]
+    #[token("each", ignore(ascii_case))]
     KwEach,
     #[token("else", ignore(ascii_case))]
     KwElse,
     #[token("elseif", ignore(ascii_case))]
     KwElseIf,
-    #[token("empty", ignore(ascii_case))]
-    KwEmpty,
+    #[token("empty", word_callback, ignore(ascii_case))]
+    KwEmpty((usize, usize)),
     #[token("end", ignore(ascii_case))]
     KwEnd,
     #[token("eqv", ignore(ascii_case))]
@@ -196,8 +196,8 @@ pub(super) enum LogosToken {
     // should be handled in a different way.
     #[token("step", ignore(ascii_case))]
     KwStep,
-    #[token("sub", ignore(ascii_case))]
-    KwSub,
+    #[token("sub", word_callback, ignore(ascii_case))]
+    KwSub((usize, usize)),
     #[token("then", ignore(ascii_case))]
     KwThen,
     #[token("to", ignore(ascii_case))]
@@ -251,7 +251,9 @@ impl LogosToken {
             Ampersand((line, column)) => (*line, *column),
             Colon((line, column)) => (*line, *column),
             Ident((line, column)) => (*line, *column),
+            KwEmpty((line, column)) => (*line, *column),
             KwSelect((line, column)) => (*line, *column),
+            KwSub((line, column)) => (*line, *column),
             KwIs((line, column)) => (*line, *column),
             NewLine((line, _)) => (*line, 0),
             PropertyAccess((line, column)) => (*line, *column),
@@ -303,7 +305,7 @@ impl LogosToken {
             KwEach       => T![each],
             KwElse       => T![else],
             KwElseIf     => T![elseif],
-            KwEmpty      => T![empty],
+            KwEmpty(_)   => T![empty],
             KwEnd        => T![end],
             KwEqv        => T![eqv],
             KwError      => T![error],
@@ -348,7 +350,7 @@ impl LogosToken {
             KwSingle     => unimplemented!( "KwSingle"),
             KwStatic     => unimplemented!( "KwStatic"),
             KwStep       => T![step],
-            KwSub        => T![sub],
+            KwSub(_)     => T![sub],
             KwThen       => T![then],
             KwTo         => T![to],
             KwTrue       => T![true],

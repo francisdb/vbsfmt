@@ -207,6 +207,7 @@ pub enum Lit {
     Str(String),
     Bool(bool),
     Nothing,
+    Empty,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -254,6 +255,11 @@ pub enum Stmt {
         step: Option<Box<Expr>>,
         body: Vec<Stmt>,
     },
+    ForEachStmt {
+        element: String,
+        group: Box<Expr>,
+        body: Vec<Stmt>,
+    },
     SelectCase {
         test_expr: Box<Expr>,
         cases: Vec<(Vec<Expr>, Vec<Stmt>)>,
@@ -263,7 +269,11 @@ pub enum Stmt {
         fn_name: FullIdent,
         args: Vec<Expr>,
     },
+    ExitDo,
     ExitFor,
+    ExitFunction,
+    ExitProperty,
+    ExitSub,
     OnError {
         error_clause: ErrorClause,
     },
@@ -357,6 +367,13 @@ impl fmt::Display for Lit {
                 }
             }
             Lit::Nothing => write!(f, "Nothing"),
+            Lit::Empty => write!(f, "Empty"),
         }
+    }
+}
+
+impl Lit {
+    pub fn str(s: impl Into<String>) -> Self {
+        Lit::Str(s.into())
     }
 }
