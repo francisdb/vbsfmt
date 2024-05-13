@@ -4,6 +4,7 @@ pub use token::{Token, TokenKind};
 
 use crate::lexer::rules::{unambiguous_single_char, Rule};
 use crate::lexer::token::Span;
+use crate::lexer::TokenKind::Error;
 use crate::T;
 
 mod generated;
@@ -37,14 +38,25 @@ impl<'input> Iterator for LogosLexer<'input> {
     fn next(&mut self) -> Option<Self::Item> {
         match self.generated.next() {
             Some((token_result, span)) => match token_result {
-                Ok(token) => Some(Token {
-                    kind: token.kind(),
-                    span: span.into(),
-                }),
-                Err(_) => Some(Token {
-                    kind: T![error],
-                    span: span.into(),
-                }),
+                Ok(token) => {
+                    let (line, column) = token.line_column();
+                    Some(Token {
+                        kind: token.kind(),
+                        span: span.into(),
+                        line,
+                        column,
+                    })
+                }
+                Err(_) => {
+                    // TODO can we provide more information here?
+                    //   can we get the line and column number?
+                    Some(Token {
+                        kind: Error,
+                        span: span.into(),
+                        line: 0,
+                        column: 0,
+                    })
+                }
             },
             None if self.eof => None,
             None => {
@@ -52,6 +64,8 @@ impl<'input> Iterator for LogosLexer<'input> {
                 Some(Token {
                     kind: T![EOF],
                     span: (0..0).into(),
+                    line: 0,
+                    column: 0,
                 })
             }
         }
@@ -119,6 +133,8 @@ impl<'input> CustomLexer<'input> {
                 start,
                 end: start + len,
             },
+            line: 0,
+            column: 0,
         })
     }
 
@@ -144,6 +160,8 @@ impl<'input> CustomLexer<'input> {
                 start,
                 end: start + len,
             },
+            line: 0,
+            column: 0,
         }
     }
 }
@@ -173,6 +191,8 @@ impl<'input> Iterator for CustomLexer<'input> {
                     start: self.position,
                     end: self.position,
                 },
+                line: 0,
+                column: 0,
             })
         } else {
             Some(self.next_token(&self.input[self.position as usize..]))

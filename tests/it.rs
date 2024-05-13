@@ -1064,7 +1064,6 @@ fn try_tokenizing_all_vbs_files() {
 ///
 /// Run this test with `cargo test --release -- --nocapture --ignored try_parsing_all_vbs_files`
 #[test]
-#[ignore]
 fn try_parsing_all_vbs_files() {
     let paths = glob::glob("../**/*.vbs").unwrap().filter_map(Result::ok);
     for path in paths {

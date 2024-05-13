@@ -107,15 +107,49 @@ End Property
 */
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct FullIdent {
+pub struct IdentPart {
     pub name: String,
-    pub property_accesses: Vec<String>,
+    pub array_indices: Vec<Expr>,
+}
+
+impl IdentPart {
+    pub fn ident(name: impl Into<String>) -> Self {
+        IdentPart {
+            name: name.into(),
+            array_indices: Vec::new(),
+        }
+    }
+}
+
+impl Display for IdentPart {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name)?;
+
+        // indices coma-space separated between parens
+        if !self.array_indices.is_empty() {
+            write!(f, "(")?;
+            for (i, index) in self.array_indices.iter().enumerate() {
+                write!(f, "{}", index)?;
+                if i < self.array_indices.len() - 1 {
+                    write!(f, ", ")?;
+                }
+            }
+            write!(f, ")")?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FullIdent {
+    pub base: IdentPart,
+    pub property_accesses: Vec<IdentPart>,
 }
 
 impl FullIdent {
     pub fn ident(name: impl Into<String>) -> Self {
         FullIdent {
-            name: name.into(),
+            base: IdentPart::ident(name),
             property_accesses: Vec::new(),
         }
     }
@@ -123,7 +157,7 @@ impl FullIdent {
 
 impl Display for FullIdent {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name)?;
+        write!(f, "{}", self.base)?;
         for prop in &self.property_accesses {
             write!(f, ".{}", prop)?;
         }
@@ -134,15 +168,17 @@ impl Display for FullIdent {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Literal(Lit),
-    Ident(FullIdent),
-    FnCall {
-        fn_name: FullIdent,
-        args: Vec<Expr>,
-    },
-    SubCall {
-        fn_name: String,
-        args: Vec<Expr>,
-    },
+    /// An identifier, sub or function call
+    /// This grammar is ambiguous, so will need to be resolved at runtime
+    IdentFnSubCall(FullIdent),
+    // FnCall {
+    //     fn_name: FullIdent,
+    //     args: Vec<Expr>,
+    // },
+    // SubCall {
+    //     fn_name: String,
+    //     args: Vec<Expr>,
+    // },
     PrefixOp {
         op: TokenKind,
         expr: Box<Expr>,
@@ -160,7 +196,7 @@ pub enum Expr {
 
 impl Expr {
     pub fn ident(name: impl Into<String>) -> Self {
-        Expr::Ident(FullIdent::ident(name))
+        Expr::IdentFnSubCall(FullIdent::ident(name))
     }
 }
 
@@ -170,6 +206,7 @@ pub enum Lit {
     Float(f64),
     Str(String),
     Bool(bool),
+    Nothing,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -217,10 +254,16 @@ pub enum Stmt {
         step: Option<Box<Expr>>,
         body: Vec<Stmt>,
     },
+    SelectCase {
+        test_expr: Box<Expr>,
+        cases: Vec<(Vec<Expr>, Vec<Stmt>)>,
+        else_stmt: Option<Vec<Stmt>>,
+    },
     SubCall {
         fn_name: FullIdent,
         args: Vec<Expr>,
     },
+    ExitFor,
     OnError {
         error_clause: ErrorClause,
     },
@@ -275,23 +318,23 @@ impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Expr::Literal(lit) => write!(f, "{}", lit),
-            Expr::Ident(ident) => {
+            Expr::IdentFnSubCall(ident) => {
                 write!(f, "{}", ident)
             }
-            Expr::FnCall { fn_name, args } => {
-                write!(f, "{}(", fn_name)?;
-                for arg in args {
-                    write!(f, "{},", arg)?;
-                }
-                write!(f, ")")
-            }
-            Expr::SubCall { fn_name, args } => {
-                write!(f, "{}", fn_name)?;
-                for arg in args {
-                    write!(f, "{},", arg)?;
-                }
-                write!(f, "")
-            }
+            // Expr::FnCall { fn_name, args } => {
+            //     write!(f, "{}(", fn_name)?;
+            //     for arg in args {
+            //         write!(f, "{},", arg)?;
+            //     }
+            //     write!(f, ")")
+            // }
+            // Expr::SubCall { fn_name, args } => {
+            //     write!(f, "{}", fn_name)?;
+            //     for arg in args {
+            //         write!(f, "{},", arg)?;
+            //     }
+            //     write!(f, "")
+            // }
             Expr::PrefixOp { op, expr } => write!(f, "({} {})", op, expr),
             Expr::InfixOp { op, lhs, rhs } => write!(f, "({} {} {})", lhs, op, rhs),
             // Expr::PostfixOp { op, expr } =>
@@ -313,6 +356,7 @@ impl fmt::Display for Lit {
                     write!(f, "False")
                 }
             }
+            Lit::Nothing => write!(f, "Nothing"),
         }
     }
 }

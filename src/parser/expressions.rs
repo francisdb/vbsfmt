@@ -19,13 +19,14 @@ where
             | lit @ T![real_literal]
             | lit @ T![string_literal]
             | lit @ T![true]
-            | lit @ T![false] => {
+            | lit @ T![false]
+            | lit @ T![nothing] => {
                 let literal_text = {
                     // the calls on `self` need to be split, because `next` takes
                     // `&mut self` if `peek` is not `T![EOF]`, then there must be
                     // a next token
                     let literal_token = self.next().unwrap();
-                    self.text(literal_token)
+                    self.text(&literal_token)
                 };
                 // We are using parse here which is for parsing rust literals, we might have to
                 // implement our own parser for VBScript literals
@@ -44,54 +45,35 @@ where
                     ),
                     T![true] => Lit::Bool(true),
                     T![false] => Lit::Bool(false),
+                    T![nothing] => Lit::Nothing,
                     _ => unreachable!(),
                 };
                 ast::Expr::Literal(lit)
             }
             T![ident] => {
                 let full_ident = self.ident_deep();
-                // let name = {
-                //     let ident_token = self.next().unwrap();
-                //     self.text(ident_token).to_string() // <- now we need a copy
-                // };
-                // let property_accesses = Vec::new();
-                // while self.at(T![property_access]) {
-                //     // property access
-                //     self.consume(T![.]);
-                //     while self.at(T![ident]) {
-                //         let property_name = {
-                //             let ident_token = self.next().unwrap();
-                //             self.text(ident_token).to_string()
-                //         };
-                //         property_accesses.push(property_name);
-                //         if self.at(T![.]) {
-                //             self.consume(T![.]);
+                // if !self.at(T!['(']) {
+                //     // plain identifier or sub call
+                //
+                //     ast::Expr::IdentFnSubCall(full_ident)
+                // } else {
+                //     //  function call
+                //     let mut args = Vec::new();
+                //     self.consume(T!['(']);
+                //     while !self.at(T![')']) {
+                //         let arg = self.parse_expression(0);
+                //         args.push(arg);
+                //         if self.at(T![,]) {
+                //             self.consume(T![,]);
                 //         }
                 //     }
+                //     self.consume(T![')']);
+                //     ast::Expr::FnCall {
+                //         fn_name: full_ident,
+                //         args,
+                //     }
                 // }
-                if !self.at(T!['(']) {
-                    // plain identifier or sub call
-
-                    // TODO handle sub call
-
-                    ast::Expr::Ident(full_ident)
-                } else {
-                    //  function call
-                    let mut args = Vec::new();
-                    self.consume(T!['(']);
-                    while !self.at(T![')']) {
-                        let arg = self.parse_expression(0);
-                        args.push(arg);
-                        if self.at(T![,]) {
-                            self.consume(T![,]);
-                        }
-                    }
-                    self.consume(T![')']);
-                    ast::Expr::FnCall {
-                        fn_name: full_ident,
-                        args,
-                    }
-                }
+                ast::Expr::IdentFnSubCall(full_ident)
             }
             T!['('] => {
                 // There is no AST node for grouped expressions.
@@ -111,7 +93,13 @@ where
                     expr: Box::new(expr),
                 }
             }
-            kind => panic!("Unknown start of expression:: {kind}"),
+            kind => {
+                let token = self.peek_full();
+                panic!(
+                    "Unknown start of expression: {kind} at line {}, column {}",
+                    token.line, token.column
+                )
+            }
         };
         loop {
             let op = match self.peek() {
@@ -123,6 +111,7 @@ where
                 | op @ T![^]
                 | op @ T![=]
                 | op @ T![<>]
+                | op @ T![is]
                 | op @ T![and]
                 | op @ T![or]
                 | op @ T![<]
@@ -133,7 +122,14 @@ where
                 T![EOF] => break,
                 T![')'] | T![,] => break,
                 ending if ending.is_ending_expression() => break,
-                kind => panic!("Unknown operator: `{}`", kind),
+                kind => {
+                    let token = *self.peek_full();
+                    let span = self.text(&token);
+                    panic!(
+                        "Unknown operator `{kind}` in expression at line {}, column {}: {span}",
+                        token.line, token.column
+                    )
+                }
             };
 
             // if let Some((left_binding_power, ())) =
@@ -157,8 +153,6 @@ where
             // }
 
             if let Some((left_binding_power, right_binding_power)) = op.infix_binding_power() {
-                // <- NEW!
-
                 if left_binding_power < binding_power {
                     // previous operator has higher binding power than
                     // new one --> end of expression
@@ -174,8 +168,15 @@ where
                 };
                 // parsed an operator --> go round the loop again
                 continue;
+            } else {
+                // break; // Not an operator --> end of expression
+                let token = *self.peek_full();
+                let span = self.text(&token);
+                panic!(
+                    "No binding power for operator `{op}` in expression at line {}, column {}: {span}",
+                    token.line, token.column
+                )
             }
-            break; // Not an operator --> end of expression
         }
 
         lhs
@@ -196,7 +197,8 @@ trait Operator {
 impl Operator for TokenKind {
     fn prefix_binding_power(&self) -> ((), u8) {
         match self {
-            T![+] | T![-] | T![not] => ((), 51),
+            T![+] | T![-] => ((), 51),
+            T![not] => ((), 4),
             // Prefixes are the only operators we have already seen
             // when we call this, so we know the token must be
             // one of the above
@@ -208,7 +210,7 @@ impl Operator for TokenKind {
         let result = match self {
             T![or] => (1, 2),
             T![and] => (3, 4),
-            T![=] | T![<>] => (5, 6),
+            T![=] | T![<>] | T![is] => (5, 6),
             T![<] | T![>] | T![<=] | T![>=] => (7, 8),
             T![+] | T![-] => (9, 10),
             T![*] | T![/] | T!['\\'] => (11, 12),
@@ -225,4 +227,90 @@ impl Operator for TokenKind {
     //     };
     //     Some(result)
     // }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::parser::ast::Expr::Literal;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn test_expression() {
+        let input = "1 + 2 * 3";
+        let mut parser = Parser::new(input);
+        let expr = parser.expression();
+        assert_eq!(
+            expr,
+            ast::Expr::InfixOp {
+                op: T![+],
+                lhs: Box::new(ast::Expr::Literal(Lit::Int(1))),
+                rhs: Box::new(ast::Expr::InfixOp {
+                    op: T![*],
+                    lhs: Box::new(ast::Expr::Literal(Lit::Int(2))),
+                    rhs: Box::new(ast::Expr::Literal(Lit::Int(3))),
+                }),
+            }
+        );
+    }
+
+    #[test]
+    fn test_expression_is_nothing() {
+        let input = "varValue Is Nothing";
+        let mut parser = Parser::new(input);
+        let expr = parser.expression();
+        assert_eq!(
+            expr,
+            ast::Expr::InfixOp {
+                op: T![is],
+                lhs: Box::new(ast::Expr::IdentFnSubCall(ast::FullIdent {
+                    base: ast::IdentPart::ident("varValue"),
+                    property_accesses: Vec::new(),
+                })),
+                rhs: Box::new(Literal(Lit::Nothing)),
+            }
+        );
+    }
+
+    #[test]
+    fn test_expression_not_ident_is_nothing() {
+        let input = "Not varValue Is Nothing";
+        let mut parser = Parser::new(input);
+        let expr = parser.expression();
+        assert_eq!(
+            expr,
+            ast::Expr::PrefixOp {
+                op: T![not],
+                expr: Box::new(ast::Expr::InfixOp {
+                    op: T![is],
+                    lhs: Box::new(ast::Expr::IdentFnSubCall(ast::FullIdent {
+                        base: ast::IdentPart::ident("varValue"),
+                        property_accesses: Vec::new(),
+                    })),
+                    rhs: Box::new(Literal(Lit::Nothing)),
+                }),
+            }
+        );
+    }
+
+    #[test]
+    fn test_expression_equals() {
+        let input = "varValue = varValue2";
+        let mut parser = Parser::new(input);
+        let expr = parser.expression();
+        assert_eq!(
+            expr,
+            ast::Expr::InfixOp {
+                op: T![=],
+                lhs: Box::new(ast::Expr::IdentFnSubCall(ast::FullIdent {
+                    base: ast::IdentPart::ident("varValue"),
+                    property_accesses: Vec::new(),
+                })),
+                rhs: Box::new(ast::Expr::IdentFnSubCall(ast::FullIdent {
+                    base: ast::IdentPart::ident("varValue2"),
+                    property_accesses: Vec::new(),
+                })),
+            }
+        );
+    }
 }

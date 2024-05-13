@@ -1,5 +1,5 @@
 use crate::lexer::{Token, TokenKind};
-use crate::parser::ast::{Argument, ErrorClause, FullIdent, Stmt};
+use crate::parser::ast::{Argument, ErrorClause, Expr, FullIdent, IdentPart, Stmt};
 use crate::parser::{ast, Parser};
 use crate::T;
 
@@ -24,7 +24,7 @@ where
                 match explicit.kind {
                     T![ident] => {
                         assert_eq!(
-                            self.text(explicit).to_ascii_lowercase(),
+                            self.text(&explicit).to_ascii_lowercase(),
                             "explicit",
                             "Expected `explicit` after `option`"
                         );
@@ -46,7 +46,7 @@ where
                     "Expected identifier as function name, but found `{}`",
                     ident.kind
                 );
-                let name = self.text(ident).to_string();
+                let name = self.text(&ident).to_string();
 
                 let parameters = self.declaration_parameter_list("Function");
 
@@ -76,9 +76,15 @@ where
                     "Expected identifier as sub name, but found `{}`",
                     ident.kind
                 );
-                let name = self.text(ident).to_string();
+                let name = self.text(&ident).to_string();
 
-                let parameters = self.declaration_parameter_list("Sub");
+                let parameters = if self.at(T!['(']) {
+                    // sub with parameters
+                    self.declaration_parameter_list("Sub")
+                } else {
+                    // sub without parameters
+                    Vec::new()
+                };
 
                 self.consume(T![nl]);
                 let body = self.block(&[T![end]]);
@@ -95,7 +101,7 @@ where
             }
             _ => {
                 // this must be a statement
-                let stmt = self.statement();
+                let stmt = self.statement(true);
                 ast::Item::Statement(stmt)
             }
         }
@@ -129,7 +135,7 @@ where
                 item_type,
                 parameter_ident.kind
             );
-            let parameter_name = self.text(parameter_ident).to_string();
+            let parameter_name = self.text(&parameter_ident).to_string();
             parameters.push(modifier(parameter_name));
             if self.at(T![,]) {
                 self.consume(T![,]);
@@ -144,7 +150,7 @@ where
         let mut stmts = Vec::new();
         while !end_tokens.contains(&self.peek()) {
             if !self.at(T![nl]) || self.at(T![:]) {
-                let stmt = self.statement();
+                let stmt = self.statement(false);
                 stmts.push(stmt);
             }
             if end_tokens.contains(&self.peek()) {
@@ -158,8 +164,8 @@ where
         stmts
     }
 
-    pub fn statement(&mut self) -> ast::Stmt {
-        match self.peek() {
+    pub fn statement(&mut self, consume_delimiter: bool) -> Stmt {
+        let stmt = match self.peek() {
             T![public] => {
                 self.consume(T![public]);
                 // TODO next could be const, dim, sub, function
@@ -172,7 +178,6 @@ where
                 // is this allowed in the root scope?
                 unimplemented!("Public not implemented yet")
             }
-
             T![dim] => {
                 self.consume(T![dim]);
                 let mut vars = Vec::new();
@@ -184,20 +189,9 @@ where
                         "Expected identifier after `dim`, but found `{}`",
                         ident.kind
                     );
-                    let name = self.text(ident).to_string();
+                    let name = self.text(&ident).to_string();
 
-                    let mut dimensions = Vec::new();
-                    if self.at(T!['(']) {
-                        self.consume(T!['(']);
-                        while !self.at(T![')']) {
-                            let dimension = self.expression();
-                            dimensions.push(dimension);
-                            if self.at(T![,]) {
-                                self.consume(T![,]);
-                            }
-                        }
-                        self.consume(T![')']);
-                    }
+                    let dimensions = self.parenthesized_arguments();
 
                     vars.push((name, dimensions));
 
@@ -208,7 +202,6 @@ where
                     }
                 }
 
-                self.consume_line_delimiter();
                 Stmt::Dim { vars }
             }
             T![redim] => {
@@ -224,10 +217,9 @@ where
                     "Expected identifier after `const`, but found `{}`",
                     ident.kind
                 );
-                let name = self.text(ident).to_string();
+                let name = self.text(&ident).to_string();
                 self.consume(T![=]);
                 let value = self.expression();
-                self.consume_line_delimiter();
                 Stmt::Const {
                     var_name: name,
                     value: Box::new(value),
@@ -242,10 +234,9 @@ where
                     "Expected identifier after `let`, but found `{}`",
                     ident.kind
                 );
-                let name = self.text(ident).to_string();
+                let name = self.text(&ident).to_string();
                 self.consume(T![=]);
                 let value = self.expression();
-                self.consume(T![nl]);
                 Stmt::Set {
                     var_name: name,
                     value: Box::new(value),
@@ -257,14 +248,12 @@ where
                     // assignment
                     self.consume(T![=]);
                     let value = self.expression();
-                    self.consume_line_delimiter();
                     Stmt::Assignment {
                         full_ident: ident,
                         value: Box::new(value),
                     }
                 } else if self.at_new_line_or_eof() {
                     // sub call without args
-                    self.consume_if_not_eof(T![nl]);
                     Stmt::SubCall {
                         fn_name: ident,
                         args: Vec::new(),
@@ -281,7 +270,6 @@ where
                             break;
                         }
                     }
-                    self.consume_line_delimiter();
                     Stmt::SubCall {
                         fn_name: ident,
                         args,
@@ -317,7 +305,6 @@ where
                     };
                     self.consume(T![end]);
                     self.consume(T![if]);
-                    self.consume(T![nl]);
                     Stmt::IfStmt {
                         condition: Box::new(condition),
                         body,
@@ -334,8 +321,8 @@ where
                         && !self.at(T![end])
                         && !self.at(T![EOF])
                     {
-                        let stmt = self.statement();
-                        body.push(stmt);
+                        let inline_stmt = self.statement(false);
+                        body.push(inline_stmt);
                         if self.at(T![:]) {
                             self.consume(T![:]);
                         }
@@ -343,7 +330,6 @@ where
                     // if we have an else or elseif, we need to parse that as well
                     if self.at(T![else]) {
                         self.consume(T![else]);
-                        self.consume(T![nl]);
 
                         let block = self.block(&[T![end]]);
 
@@ -357,7 +343,6 @@ where
                         self.consume(T![elseif]);
                         let condition = self.expression();
                         self.consume(T![then]);
-                        self.consume(T![nl]);
 
                         let block = self.block(&[T![end]]);
 
@@ -368,7 +353,6 @@ where
                             else_stmt: Some(block),
                         }
                     } else {
-                        self.consume_if_not_eof(T![nl]);
                         Stmt::IfStmt {
                             condition: Box::new(condition),
                             body,
@@ -386,9 +370,8 @@ where
                 let body = self.block(&[T![wend]]);
 
                 self.consume(T![wend]);
-                self.consume(T![nl]);
 
-                ast::Stmt::WhileStmt {
+                Stmt::WhileStmt {
                     condition: Box::new(condition),
                     body,
                 }
@@ -396,7 +379,7 @@ where
             T![for] => {
                 self.consume(T![for]);
                 let counter = self.next().unwrap();
-                let counter_name = self.text(counter).to_string();
+                let counter_name = self.text(&counter).to_string();
                 self.consume(T![=]);
                 let start = self.expression();
                 self.consume(T![to]);
@@ -412,14 +395,52 @@ where
                 let body = self.block(&[T![next]]);
 
                 self.consume(T![next]);
-                self.consume(T![nl]);
 
-                ast::Stmt::ForStmt {
+                Stmt::ForStmt {
                     counter: counter_name,
                     start: Box::new(start),
                     end: Box::new(end),
                     step,
                     body,
+                }
+            }
+            T![select] => {
+                self.consume(T![select]);
+                self.consume(T![case]);
+                let expr = self.expression();
+                self.consume(T![nl]);
+                let mut cases = Vec::new();
+                let mut else_stmt = None;
+                while !self.at(T![end]) {
+                    if else_stmt.is_some() {
+                        panic!("`else` statement must be last in `select case` block")
+                    }
+                    self.consume(T![case]);
+                    if self.at(T![else]) {
+                        self.consume(T![else]);
+                        self.consume_line_delimiter();
+                        let block = self.block(&[T![end], T![case]]);
+                        else_stmt = Some(block);
+                    } else {
+                        let mut case_values = Vec::new();
+                        while !self.at(T![nl]) && !self.at(T![:]) {
+                            let value = self.expression();
+                            case_values.push(value);
+                            if self.at(T![,]) {
+                                self.consume(T![,]);
+                            }
+                        }
+                        self.consume_line_delimiter();
+                        let block = self.block(&[T![end], T![case]]);
+                        cases.push((case_values, block));
+                    }
+                }
+                self.consume(T![end]);
+                self.consume(T![select]);
+                Stmt::SelectCase {
+                    test_expr: Box::new(expr),
+                    cases,
+                    else_stmt,
                 }
             }
             T![on] => {
@@ -434,7 +455,7 @@ where
                     self.consume(T![goto]);
                     let token = self.consume(T![integer_literal]);
                     let number: usize = self
-                        .text(token)
+                        .text(&token)
                         .parse()
                         .expect("Expected integer after `goto`");
                     if number != 0 {
@@ -444,35 +465,88 @@ where
                 } else {
                     panic!("Expected `resume next` or `goto 0` after `on error`")
                 };
-                self.consume(T![nl]);
-                ast::Stmt::OnError { error_clause }
+                Stmt::OnError { error_clause }
+            }
+            T![exit] => {
+                self.consume(T![exit]);
+                if self.at(T![for]) {
+                    self.consume(T![for]);
+                    Stmt::ExitFor
+                } else {
+                    panic!("Exit only implemented for `for`")
+                }
             }
             kind => {
-                panic!("Unexpected token: {:?}", kind);
+                let full = self.peek_full();
+                panic!(
+                    "Unexpected token: {:?} at line {}, column {}",
+                    kind, full.line, full.column
+                );
             }
+        };
+        if consume_delimiter {
+            self.consume_line_delimiter();
+        }
+        stmt
+    }
+
+    fn parenthesized_arguments(&mut self) -> Vec<Expr> {
+        let mut arguments = Vec::new();
+        if self.at(T!['(']) {
+            self.consume(T!['(']);
+            while !self.at(T![')']) {
+                let expr = self.expression();
+                arguments.push(expr);
+                if self.at(T![,]) {
+                    self.consume(T![,]);
+                }
+            }
+            self.consume(T![')']);
+        };
+        arguments
+    }
+
+    pub(crate) fn ident_part(&mut self) -> IdentPart {
+        // example input: `foo` or `foo(1)` or `foo(1, 2)`
+        let ident = self.consume(T![ident]);
+        // TODO is `foo(1)(2)` valid syntax?
+        let array_indices = self.parenthesized_arguments();
+        IdentPart {
+            name: self.text(&ident).to_string(),
+            array_indices,
         }
     }
 
     pub(crate) fn ident_deep(&mut self) -> FullIdent {
-        let ident = self.next().unwrap();
-        let name = self.text(ident).to_string();
+        // example input: `foo(x + 1).bar.baz(2,3).name`
+        let ident = self.ident_part();
         let mut property_accesses = vec![];
+        // TODO should property access work with spaces? `foo . bar . baz`
         while self.at(T![property_access]) {
-            let token = self.next().unwrap();
-            let property_name = self.text(token).to_string();
-            // validate first character and remover the dot
-            assert_eq!(
-                property_name.chars().next().unwrap(),
-                '.',
-                "Expected property access to start with a dot, but found `{}`",
-                property_name
-            );
-            property_accesses.push(property_name[1..].to_string());
+            let name = self.property();
+            let array_indices = self.parenthesized_arguments();
+            property_accesses.push(IdentPart {
+                name,
+                array_indices,
+            });
         }
         FullIdent {
-            name,
+            base: ident,
             property_accesses,
         }
+    }
+
+    fn property(&mut self) -> String {
+        let token = self.consume(T![property_access]);
+        let property_name = self.text(&token).to_string();
+        // validate first character and remover the dot
+        assert_eq!(
+            property_name.chars().next().unwrap(),
+            '.',
+            "Expected property access to start with a dot, but found `{}`",
+            property_name
+        );
+        property_name[1..].to_string()
     }
 
     pub fn type_(&mut self) -> ast::Type {
@@ -485,7 +559,7 @@ where
             "Expected identifier at start of type, but found `{}`",
             ident.kind
         );
-        let name = self.text(ident).to_string();
+        let name = self.text(&ident).to_string();
 
         let mut generics = Vec::new();
 

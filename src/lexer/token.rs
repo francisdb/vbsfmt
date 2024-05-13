@@ -5,6 +5,9 @@ use std::ops::{Index, Range};
 pub struct Token {
     pub kind: TokenKind,
     pub span: Span,
+    // 1-indexed, 0 means unknown
+    pub line: usize,
+    pub column: usize,
 }
 
 impl Token {
@@ -25,8 +28,8 @@ impl fmt::Debug for Token {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{:?} - <{}, {}>",
-            self.kind, self.span.start, self.span.end
+            "{:?} - line {}, col {} <{} - {}>",
+            self.kind, self.line, self.column, self.span.start, self.span.end
         )
     }
 }
