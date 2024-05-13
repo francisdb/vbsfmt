@@ -86,12 +86,12 @@ where
                     Vec::new()
                 };
 
-                self.consume(T![nl]);
+                self.consume_line_delimiter();
                 let body = self.block(&[T![end]]);
 
                 self.consume(T![end]);
                 self.consume(T![sub]);
-                self.consume(T![nl]);
+                self.consume_if_not_eof(T![nl]);
 
                 ast::Item::Sub {
                     name,

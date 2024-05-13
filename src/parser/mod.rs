@@ -561,6 +561,36 @@ Const a = 1			' some info
     }
 
     #[test]
+    fn parse_inline_sub_declaration() {
+        let input = "Sub Trigger003_hit : RampWireRight.x = 0.1 : Light030.state = 0 : End Sub";
+        let mut parser = Parser::new(input);
+        let item = parser.item();
+        assert_eq!(
+            item,
+            Item::Sub {
+                name: "Trigger003_hit".to_string(),
+                parameters: vec![],
+                body: vec![
+                    Stmt::Assignment {
+                        full_ident: FullIdent {
+                            base: IdentPart::ident("RampWireRight"),
+                            property_accesses: vec![IdentPart::ident("x")],
+                        },
+                        value: Box::new(Expr::Literal(Lit::Float(0.1))),
+                    },
+                    Stmt::Assignment {
+                        full_ident: FullIdent {
+                            base: IdentPart::ident("Light030"),
+                            property_accesses: vec![IdentPart::ident("state")],
+                        },
+                        value: Box::new(Expr::Literal(Lit::Int(0))),
+                    },
+                ],
+            }
+        );
+    }
+
+    #[test]
     fn parse_byval_byref() {
         let input = indoc! {r#"
             Sub test (ByRef a)
