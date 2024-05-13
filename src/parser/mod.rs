@@ -395,6 +395,45 @@ Const a = 1			' some info
     }
 
     #[test]
+    fn parse_for_inline() {
+        let input = "For x = 1 To PlayerMode(currentplayer)+1 : Blink(x,1)=1 : Next";
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(
+            stmt,
+            Stmt::ForStmt {
+                counter: "x".to_string(),
+                start: Box::new(Expr::Literal(Lit::Int(1))),
+                end: Box::new(Expr::InfixOp {
+                    op: T![+],
+                    lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
+                        base: IdentPart {
+                            name: "PlayerMode".to_string(),
+                            array_indices: vec![Expr::IdentFnSubCall(FullIdent {
+                                base: IdentPart::ident("currentplayer"),
+                                property_accesses: vec![],
+                            }),],
+                        },
+                        property_accesses: vec![],
+                    })),
+                    rhs: Box::new(Expr::Literal(Lit::Int(1))),
+                }),
+                step: None,
+                body: vec![Stmt::Assignment {
+                    full_ident: FullIdent {
+                        base: IdentPart {
+                            name: "Blink".to_string(),
+                            array_indices: vec![Expr::ident("x"), Expr::Literal(Lit::Int(1))],
+                        },
+                        property_accesses: vec![],
+                    },
+                    value: Box::new(Expr::Literal(Lit::Int(1))),
+                },],
+            }
+        );
+    }
+
+    #[test]
     fn parse_foreach_multiline() {
         let input = indoc! {r#"
             For each dog in dogs

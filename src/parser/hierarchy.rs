@@ -409,7 +409,7 @@ where
                     } else {
                         None
                     };
-                    self.consume(T![nl]);
+                    self.consume_line_delimiter();
 
                     let body = self.block(&[T![next]]);
 
