@@ -80,8 +80,8 @@ where
     }
 
     pub(crate) fn consume_line_delimiter(&mut self) {
-        let peek = self.peek();
-        match peek {
+        let peek = self.peek_full();
+        match peek.kind {
             T![EOF] => {}
             T![nl] => {
                 self.consume(T![nl]);
@@ -89,7 +89,10 @@ where
             T![:] => {
                 self.consume(T![:]);
             }
-            _ => panic!("Expected newline or colon, but found {:?}", peek),
+            other => panic!(
+                "Unexpected token at line {}, column {}. Expected newline or colon, but found {}",
+                peek.line, peek.column, other
+            ),
         }
     }
 
@@ -691,11 +694,14 @@ Const a = 1			' some info
                 }),
                 Item::Statement(Stmt::SubCall {
                     fn_name: FullIdent::ident("test"),
-                    args: vec![Expr::Literal(Lit::Int(1))],
+                    args: vec![Some(Expr::Literal(Lit::Int(1)))],
                 }),
                 Item::Statement(Stmt::SubCall {
                     fn_name: FullIdent::ident("test"),
-                    args: vec![Expr::Literal(Lit::Int(1)), Expr::Literal(Lit::Int(2))],
+                    args: vec![
+                        Some(Expr::Literal(Lit::Int(1))),
+                        Some(Expr::Literal(Lit::Int(2)))
+                    ],
                 }),
             ]
         );
@@ -733,7 +739,7 @@ Const a = 1			' some info
                 condition: Box::new(Expr::ident("Err".to_string())),
                 body: vec![Stmt::SubCall {
                     fn_name: FullIdent::ident("MsgBox"),
-                    args: vec![Expr::Literal(Lit::Str("Oh noes".to_string()))],
+                    args: vec![Some(Expr::Literal(Lit::Str("Oh noes".to_string())))],
                 }],
                 elseif_statements: vec![],
                 else_stmt: None,
@@ -753,16 +759,113 @@ Const a = 1			' some info
                 body: vec![
                     Stmt::SubCall {
                         fn_name: FullIdent::ident("MsgBox"),
-                        args: vec![Expr::Literal(Lit::Str("Oh noes".to_string()))],
+                        args: vec![Some(Expr::Literal(Lit::Str("Oh noes".to_string())))],
                     },
                     Stmt::SubCall {
                         fn_name: FullIdent::ident("MsgBox"),
-                        args: vec![Expr::Literal(Lit::Str("Crash".to_string()))],
+                        args: vec![Some(Expr::Literal(Lit::Str("Crash".to_string())))],
                     }
                 ],
                 elseif_statements: vec![],
                 else_stmt: None,
             }
+        );
+    }
+
+    #[test]
+    fn test_singe_line_if_with_end_if() {
+        let input = r#"if VRRoom > 0 Then bbs006.state = x2 Else controller.B2SSetData 50,x2 : controller.B2SSetData 53,x2 : End If"#;
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(
+            stmt,
+            Stmt::IfStmt {
+                condition: Box::new(Expr::InfixOp {
+                    op: T![>],
+                    lhs: Box::new(Expr::ident("VRRoom".to_string())),
+                    rhs: Box::new(Expr::Literal(Lit::Int(0))),
+                }),
+                body: vec![Stmt::Assignment {
+                    full_ident: FullIdent {
+                        base: IdentPart::ident("bbs006"),
+                        property_accesses: vec![IdentPart::ident("state")],
+                    },
+                    value: Box::new(Expr::ident("x2".to_string())),
+                }],
+                elseif_statements: vec![],
+                else_stmt: Some(vec![
+                    Stmt::SubCall {
+                        fn_name: FullIdent {
+                            base: IdentPart::ident("controller"),
+                            property_accesses: vec![IdentPart::ident("B2SSetData")],
+                        },
+                        args: vec![
+                            Some(Expr::Literal(Lit::Int(50))),
+                            Some(Expr::ident("x2".to_string())),
+                        ],
+                    },
+                    Stmt::SubCall {
+                        fn_name: FullIdent {
+                            base: IdentPart::ident("controller"),
+                            property_accesses: vec![IdentPart::ident("B2SSetData")],
+                        },
+                        args: vec![
+                            Some(Expr::Literal(Lit::Int(53))),
+                            Some(Expr::ident("x2".to_string())),
+                        ],
+                    },
+                ]),
+            }
+        );
+    }
+
+    #[test]
+    fn test_parse_if_two_single_lines() {
+        let input = r#"
+            If(x <> "") Then LutValue = CDbl(x) Else LutValue = 1
+	        If LutValue < 1 Then LutValue = 1
+        "#;
+        let mut parser = Parser::new(input);
+        let file = parser.file();
+        assert_eq!(
+            file,
+            vec![
+                Item::Statement(Stmt::IfStmt {
+                    condition: Box::new(Expr::InfixOp {
+                        op: T![<>],
+                        lhs: Box::new(Expr::ident("x".to_string())),
+                        rhs: Box::new(Expr::Literal(Lit::Str("".to_string()))),
+                    }),
+                    body: vec![Stmt::Assignment {
+                        full_ident: FullIdent::ident("LutValue"),
+                        value: Box::new(Expr::IdentFnSubCall(FullIdent {
+                            base: IdentPart {
+                                name: "CDbl".to_string(),
+                                array_indices: vec![Expr::ident("x".to_string())],
+                            },
+                            property_accesses: vec![],
+                        })),
+                    }],
+                    elseif_statements: vec![],
+                    else_stmt: Some(vec![Stmt::Assignment {
+                        full_ident: FullIdent::ident("LutValue"),
+                        value: Box::new(Expr::Literal(Lit::Int(1))),
+                    }]),
+                }),
+                Item::Statement(Stmt::IfStmt {
+                    condition: Box::new(Expr::InfixOp {
+                        op: T![<],
+                        lhs: Box::new(Expr::ident("LutValue".to_string())),
+                        rhs: Box::new(Expr::Literal(Lit::Int(1))),
+                    }),
+                    body: vec![Stmt::Assignment {
+                        full_ident: FullIdent::ident("LutValue"),
+                        value: Box::new(Expr::Literal(Lit::Int(1))),
+                    }],
+                    elseif_statements: vec![],
+                    else_stmt: None,
+                }),
+            ]
         );
     }
 
@@ -1156,6 +1259,24 @@ Const a = 1			' some info
                 },],
                 elseif_statements: vec![],
                 else_stmt: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_sub_call_with_empty_args() {
+        let input = r#"DoSomething 1,,"test""#;
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(
+            stmt,
+            Stmt::SubCall {
+                fn_name: FullIdent::ident("DoSomething"),
+                args: vec![
+                    Some(Expr::Literal(Lit::Int(1))),
+                    None,
+                    Some(Expr::Literal(Lit::Str("test".to_string()))),
+                ],
             }
         );
     }

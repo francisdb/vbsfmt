@@ -16,6 +16,8 @@ where
     pub fn parse_expression(&mut self, binding_power: u8) -> ast::Expr {
         let mut lhs = match self.peek() {
             lit @ T![integer_literal]
+            | lit @ T![hex_integer_literal]
+            | lit @ T![octal_integer_literal]
             | lit @ T![real_literal]
             | lit @ T![string_literal]
             | lit @ T![true]
@@ -36,6 +38,16 @@ where
                         ast::Lit::Int(literal_text.parse().unwrap_or_else(|_| {
                             panic!("invalid integer literal: `{literal_text}`")
                         }))
+                    }
+                    T![hex_integer_literal] => Lit::Int(
+                        usize::from_str_radix(&literal_text[2..], 16).unwrap_or_else(|_| {
+                            panic!("invalid hex integer literal: `{literal_text}`")
+                        }),
+                    ),
+                    T![octal_integer_literal] => {
+                        Lit::Int(usize::from_str_radix(&literal_text[2..], 8).unwrap_or_else(
+                            |_| panic!("invalid octal integer literal: `{literal_text}`"),
+                        ))
                     }
                     T![real_literal] => Lit::Float(literal_text.parse().unwrap_or_else(|_| {
                         panic!("invalid floating point literal: `{literal_text}`")
@@ -254,6 +266,21 @@ mod test {
                     lhs: Box::new(ast::Expr::Literal(Lit::Int(2))),
                     rhs: Box::new(ast::Expr::Literal(Lit::Int(3))),
                 }),
+            }
+        );
+    }
+
+    #[test]
+    fn test_expression_with_hex_leteral() {
+        let input = "col And &HFF";
+        let mut parser = Parser::new(input);
+        let expr = parser.expression();
+        assert_eq!(
+            expr,
+            ast::Expr::InfixOp {
+                op: T![and],
+                lhs: Box::new(ast::Expr::IdentFnSubCall(ast::FullIdent::ident("col"))),
+                rhs: Box::new(ast::Expr::Literal(Lit::Int(0xFF))),
             }
         );
     }

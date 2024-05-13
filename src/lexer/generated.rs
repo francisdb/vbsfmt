@@ -24,8 +24,8 @@ fn word_callback(lex: &mut Lexer<LogosToken>) -> (usize, usize) {
 pub(super) enum LogosToken {
     #[token(":", word_callback)]
     Colon((usize, usize)),
-    #[token(",")]
-    Comma,
+    #[token(",", word_callback)]
+    Comma((usize, usize)),
     #[token(";")]
     Semi,
     #[token("+")]
@@ -60,16 +60,20 @@ pub(super) enum LogosToken {
     #[token(")")]
     RParen,
     // Constructs
-    #[regex(r#""([^"]|"")*""#)]
-    String,
-    #[regex(r#"\d+"#, priority = 2)]
-    Int,
-    #[regex(r#"&H[0-9A-Fa-f]+"#, priority = 2)]
-    HexInt,
-    #[regex(r#"&O[0-7]+"#, priority = 2)]
-    OctalInt,
-    #[regex(r#"((\d+(\.\d+)?)|(\.\d+))([Ee](\+|-)?\d+)?"#, priority = 1)]
-    Float,
+    #[regex(r#""([^"]|"")*""#, word_callback)]
+    String((usize, usize)),
+    #[regex(r#"\d+"#, word_callback, priority = 2)]
+    Int((usize, usize)),
+    #[regex(r#"&H[0-9A-Fa-f]+"#, word_callback, priority = 2)]
+    HexInt((usize, usize)),
+    #[regex(r#"&O[0-7]+"#, word_callback, priority = 2)]
+    OctalInt((usize, usize)),
+    #[regex(
+        r#"((\d+(\.\d+)?)|(\.\d+))([Ee](\+|-)?\d+)?"#,
+        word_callback,
+        priority = 1
+    )]
+    Float((usize, usize)),
     #[regex(r#"([A-Za-z]|_)([A-Za-z]|_|\d)*"#, word_callback, priority = 3)]
     Ident((usize, usize)),
 
@@ -104,8 +108,8 @@ pub(super) enum LogosToken {
     KwElseIf,
     #[token("empty", word_callback, ignore(ascii_case))]
     KwEmpty((usize, usize)),
-    #[token("end", ignore(ascii_case))]
-    KwEnd,
+    #[token("end", word_callback, ignore(ascii_case))]
+    KwEnd((usize, usize)),
     #[token("eqv", ignore(ascii_case))]
     KwEqv,
     #[token("error", ignore(ascii_case))]
@@ -124,8 +128,8 @@ pub(super) enum LogosToken {
     KwGet,
     #[token("goto", ignore(ascii_case))]
     KwGoTo,
-    #[token("if", ignore(ascii_case))]
-    KwIf,
+    #[token("if", word_callback, ignore(ascii_case))]
+    KwIf((usize, usize)),
     #[token("imp", ignore(ascii_case))]
     KwImp,
     #[token("implements", ignore(ascii_case))]
@@ -142,8 +146,8 @@ pub(super) enum LogosToken {
     KwLoop,
     #[token("lset", ignore(ascii_case))]
     KwLSet,
-    #[token("me", ignore(ascii_case))]
-    KwMe,
+    #[token("me", word_callback, ignore(ascii_case))]
+    KwMe((usize, usize)),
     #[token("mod", word_callback, ignore(ascii_case))]
     KwMod((usize, usize)),
     #[token("new", ignore(ascii_case))]
@@ -250,18 +254,29 @@ impl LogosToken {
         let mut line_col = match self {
             Ampersand((line, column)) => (*line, *column),
             Colon((line, column)) => (*line, *column),
+            Comma((line, column)) => (*line, *column),
             Ident((line, column)) => (*line, *column),
             KwEmpty((line, column)) => (*line, *column),
+            KwEnd((line, column)) => (*line, *column),
+            KwMe((line, column)) => (*line, *column),
             KwMod((line, column)) => (*line, *column),
             KwSelect((line, column)) => (*line, *column),
             KwSub((line, column)) => (*line, *column),
+            KwIf((line, column)) => (*line, *column),
             KwIs((line, column)) => (*line, *column),
             NewLine((line, _)) => (*line, 0),
             PropertyAccess((line, column)) => (*line, *column),
+            String((line, column)) => (*line, *column),
+            Int((line, column)) => (*line, *column),
+            HexInt((line, column)) => (*line, *column),
+            OctalInt((line, column)) => (*line, *column),
+            Float((line, column)) => (*line, *column),
             _ => (0, 0),
         };
         // further down lines are 1-indexed
-        line_col.0 += 1;
+        if line_col.0 > 0 {
+            line_col.0 += 1;
+        }
         line_col
     }
 
@@ -270,7 +285,7 @@ impl LogosToken {
         use LogosToken::*;
         match self {
             Colon(_)        => T![:],
-            Comma        => T![,],
+            Comma(_)        => T![,],
             Semi         => T![;],
             Plus         => T![+],
             Minus        => T![-],
@@ -284,14 +299,14 @@ impl LogosToken {
             Geq          => T![>=],
             LAngle       => T![<],
             RAngle       => T![>],
-            Ampersand(_)    => T![&],
+            Ampersand(_) => T![&],
             LParen       => T!['('],
             RParen       => T![')'],
-            String       => T![string_literal],
-            Int          => T![integer_literal],
-            HexInt       => T![hex_integer_literal],
-            OctalInt     => T![octal_integer_literal],
-            Float        => T![real_literal],
+            String(_)    => T![string_literal],
+            Int(_)       => T![integer_literal],
+            HexInt(_)    => T![hex_integer_literal],
+            OctalInt(_)  => T![octal_integer_literal],
+            Float(_)     => T![real_literal],
             Ident(_)     => T![ident],
             KwAnd        => T![and],
             KwByRef      => T![byref],
@@ -307,7 +322,7 @@ impl LogosToken {
             KwElse       => T![else],
             KwElseIf     => T![elseif],
             KwEmpty(_)   => T![empty],
-            KwEnd        => T![end],
+            KwEnd(_)     => T![end],
             KwEqv        => T![eqv],
             KwError      => T![error],
             KwEvent      => unimplemented!("KwEvent"),
@@ -317,7 +332,7 @@ impl LogosToken {
             KwFunction   => T![function],
             KwGet        => T![get],
             KwGoTo       => T![goto],
-            KwIf         => T![if],
+            KwIf(_)      => T![if],
             KwImp        => T![imp],
             KwImplements => unimplemented!("KwImplements"),
             KwIn         => T![in],
@@ -326,7 +341,7 @@ impl LogosToken {
             KwLike       => unimplemented!( "KwLike"),
             KwLoop       => T![loop],
             KwLSet       => unimplemented!( "KwLSet"),
-            KwMe         => T![me],
+            KwMe(_)      => T![me],
             KwMod(_)     => T![mod],
             KwNew        => T![new],
             KwNext       => T![next],

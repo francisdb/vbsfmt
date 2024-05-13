@@ -261,9 +261,15 @@ where
                 } else {
                     // sub call with args
                     let mut args = Vec::new();
-                    while !self.at(T![nl]) {
+                    while !self.at(T![:]) && !self.at(T![nl]) && !self.at(T![EOF]) {
+                        // // empty arguments are allowed
+                        if self.at(T![,]) {
+                            self.consume(T![,]);
+                            args.push(None);
+                            continue;
+                        }
                         let arg = self.expression();
-                        args.push(arg);
+                        args.push(Some(arg));
                         if self.at(T![,]) {
                             self.consume(T![,]);
                         } else {
@@ -327,38 +333,53 @@ where
                             self.consume(T![:]);
                         }
                     }
-                    // if we have an else or elseif, we need to parse that as well
-                    if self.at(T![else]) {
-                        self.consume(T![else]);
 
-                        let block = self.block(&[T![end], T![nl], T![EOF]]);
-
-                        Stmt::IfStmt {
-                            condition: Box::new(condition),
-                            body,
-                            elseif_statements: Vec::new(),
-                            else_stmt: Some(block),
-                        }
-                    } else if self.at(T![elseif]) {
+                    let mut elseif_statements = Vec::new();
+                    while self.at(T![elseif]) {
                         self.consume(T![elseif]);
                         let condition = self.expression();
                         self.consume(T![then]);
-
-                        let block = self.block(&[T![end], T![else], T![nl], T![EOF]]);
-
-                        Stmt::IfStmt {
-                            condition: Box::new(condition),
-                            body,
-                            elseif_statements: Vec::new(),
-                            else_stmt: Some(block),
+                        let mut elseif_body = Vec::new();
+                        while !self.at(T![nl])
+                            && !self.at(T![else])
+                            && !self.at(T![elseif])
+                            && !self.at(T![end])
+                            && !self.at(T![EOF])
+                        {
+                            let inline_stmt = self.statement(false);
+                            elseif_body.push(inline_stmt);
+                            if self.at(T![:]) {
+                                self.consume(T![:]);
+                            }
                         }
+                        elseif_statements.push((Box::new(condition), elseif_body));
+                    }
+                    let else_stmt = if self.at(T![else]) {
+                        self.consume(T![else]);
+                        let mut else_body = Vec::new();
+                        while !self.at(T![end]) && !self.at(T![EOF]) && !self.at(T![nl]) {
+                            let inline_stmt = self.statement(false);
+                            else_body.push(inline_stmt);
+                            if self.at(T![:]) {
+                                self.consume(T![:]);
+                            }
+                        }
+                        Some(else_body)
                     } else {
-                        Stmt::IfStmt {
-                            condition: Box::new(condition),
-                            body,
-                            elseif_statements: Vec::new(),
-                            else_stmt: None,
-                        }
+                        None
+                    };
+
+                    // optional "End If" if we still have not encountered a newline
+                    if self.at(T![end]) {
+                        self.consume(T![end]);
+                        self.consume(T![if]);
+                    }
+
+                    Stmt::IfStmt {
+                        condition: Box::new(condition),
+                        body,
+                        elseif_statements,
+                        else_stmt,
                     }
                 }
             }
