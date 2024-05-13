@@ -191,7 +191,7 @@ pub enum Expr {
     // PostfixOp {
     //     op: TokenKind,
     //     expr: Box<Expr>,
-    // },
+    // }
 }
 
 impl Expr {
@@ -217,6 +217,18 @@ pub enum ErrorClause {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum SetRhs {
+    Expr(Box<Expr>),
+    NewClass(String),
+}
+
+impl SetRhs {
+    pub fn new_class(class_name: impl Into<String>) -> Self {
+        SetRhs::NewClass(class_name.into())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
     Dim {
         vars: Vec<(String, Vec<Expr>)>,
@@ -232,7 +244,7 @@ pub enum Stmt {
     },
     Set {
         var_name: String,
-        value: Box<Expr>,
+        rhs: SetRhs,
     },
     Assignment {
         full_ident: FullIdent,

@@ -1,5 +1,5 @@
 use crate::lexer::{Token, TokenKind};
-use crate::parser::ast::{Argument, ErrorClause, Expr, FullIdent, IdentPart, Stmt};
+use crate::parser::ast::{Argument, ErrorClause, Expr, FullIdent, IdentPart, SetRhs, Stmt};
 use crate::parser::{ast, Parser};
 use crate::T;
 
@@ -210,13 +210,7 @@ where
             T![const] => {
                 // TODO add support for multiple variables in one const statement
                 self.consume(T![const]);
-                let ident = self.next().expect("Expected identifier after `const`");
-                assert_eq!(
-                    ident.kind,
-                    T![ident],
-                    "Expected identifier after `const`, but found `{}`",
-                    ident.kind
-                );
+                let ident = self.consume(T![ident]);
                 let name = self.text(&ident).to_string();
                 self.consume(T![=]);
                 let value = self.expression();
@@ -236,13 +230,23 @@ where
                 );
                 let name = self.text(&ident).to_string();
                 self.consume(T![=]);
-                let value = self.expression();
-                Stmt::Set {
-                    var_name: name,
-                    value: Box::new(value),
+                if self.at(T![new]) {
+                    self.consume(T![new]);
+                    let ident = self.consume(T![ident]);
+                    let class_name = self.text(&ident).to_string();
+                    Stmt::Set {
+                        var_name: name,
+                        rhs: SetRhs::NewClass(class_name),
+                    }
+                } else {
+                    let expr = self.expression();
+                    Stmt::Set {
+                        var_name: name,
+                        rhs: SetRhs::Expr(Box::new(expr)),
+                    }
                 }
             }
-            T![ident] => {
+            T![ident] | T![me] => {
                 let ident = self.ident_deep();
                 if self.at(T![=]) {
                     // assignment
@@ -565,7 +569,17 @@ where
     }
 
     pub(crate) fn ident_part(&mut self) -> IdentPart {
-        // example input: `foo` or `foo(1)` or `foo(1, 2)`
+        // example input: `foo` or `foo(1)` or `foo(1, 2) or Me`
+        let peek = self.peek();
+        // TODO we might need to handle `Me` as a special node in the AST
+        //   instead of going back to the string representation
+        if peek == T![me] {
+            let me = self.consume(T![me]);
+            return IdentPart {
+                name: self.text(&me).to_string(),
+                array_indices: Vec::new(),
+            };
+        }
         let ident = self.consume(T![ident]);
         // TODO is `foo(1)(2)` valid syntax?
         let array_indices = self.parenthesized_arguments();

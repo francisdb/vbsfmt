@@ -150,8 +150,8 @@ pub(super) enum LogosToken {
     KwMe((usize, usize)),
     #[token("mod", word_callback, ignore(ascii_case))]
     KwMod((usize, usize)),
-    #[token("new", ignore(ascii_case))]
-    KwNew,
+    #[token("new", word_callback, ignore(ascii_case))]
+    KwNew((usize, usize)),
     #[token("next", ignore(ascii_case))]
     KwNext,
     #[token("not", ignore(ascii_case))]
@@ -198,8 +198,8 @@ pub(super) enum LogosToken {
     KwStatic,
     // In the listing I found 'step' was missing as keyword so I wonder if this
     // should be handled in a different way.
-    #[token("step", ignore(ascii_case))]
-    KwStep,
+    #[token("step", word_callback, ignore(ascii_case))]
+    KwStep((usize, usize)),
     #[token("sub", word_callback, ignore(ascii_case))]
     KwSub((usize, usize)),
     #[token("then", ignore(ascii_case))]
@@ -260,7 +260,9 @@ impl LogosToken {
             KwEnd((line, column)) => (*line, *column),
             KwMe((line, column)) => (*line, *column),
             KwMod((line, column)) => (*line, *column),
+            KwNew((line, column)) => (*line, *column),
             KwSelect((line, column)) => (*line, *column),
+            KwStep((line, column)) => (*line, *column),
             KwSub((line, column)) => (*line, *column),
             KwIf((line, column)) => (*line, *column),
             KwIs((line, column)) => (*line, *column),
@@ -343,7 +345,7 @@ impl LogosToken {
             KwLSet       => unimplemented!( "KwLSet"),
             KwMe(_)      => T![me],
             KwMod(_)     => T![mod],
-            KwNew        => T![new],
+            KwNew(_)        => T![new],
             KwNext       => T![next],
             KwNot        => T![not],
             KwNothing    => T![nothing],
@@ -365,7 +367,7 @@ impl LogosToken {
             KwShared     => unimplemented!( "KwShared"),
             KwSingle     => unimplemented!( "KwSingle"),
             KwStatic     => unimplemented!( "KwStatic"),
-            KwStep       => T![step],
+            KwStep(_)    => T![step],
             KwSub(_)     => T![sub],
             KwThen       => T![then],
             KwTo         => T![to],

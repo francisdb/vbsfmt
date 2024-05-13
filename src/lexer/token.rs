@@ -197,6 +197,7 @@ impl TokenKind {
                 | Self::KeywordUntil
                 | Self::KeywordThen
                 | Self::KeywordTo
+                | Self::KeywordStep
                 | Self::KeywordElse
                 | Self::Newline
                 | Self::Colon

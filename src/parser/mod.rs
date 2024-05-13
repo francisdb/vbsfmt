@@ -150,7 +150,7 @@ mod test {
     use super::*;
     use crate::parser::ast::ErrorClause::{Goto0, ResumeNext};
     use crate::parser::ast::Stmt::OnError;
-    use crate::parser::ast::{Argument, Expr, FullIdent, IdentPart, Item, Lit, Stmt};
+    use crate::parser::ast::{Argument, Expr, FullIdent, IdentPart, Item, Lit, SetRhs, Stmt};
     use indoc::indoc;
     use pretty_assertions::assert_eq;
 
@@ -394,6 +394,27 @@ Const a = 1			' some info
                     },
                 ],
             }
+        );
+    }
+
+    #[test]
+    fn parse_for_step() {
+        let input = indoc! {r#"
+            For i = For_nr to Next_nr step Bdir
+                ' do nothing
+            Next
+        "#};
+        let mut parser = Parser::new(input);
+        let file = parser.file();
+        assert_eq!(
+            file,
+            vec![Item::Statement(Stmt::ForStmt {
+                counter: "i".to_string(),
+                start: Box::new(Expr::ident("For_nr".to_string())),
+                end: Box::new(Expr::ident("Next_nr".to_string())),
+                step: Some(Box::new(Expr::ident("Bdir".to_string()))),
+                body: vec![],
+            }),]
         );
     }
 
@@ -1155,6 +1176,20 @@ Const a = 1			' some info
                     })),
                     rhs: Box::new(Expr::Literal(Lit::Float(120.5))),
                 }),
+            })]
+        );
+    }
+
+    #[test]
+    fn test_object_assignment_using_new() {
+        let input = "Set foo = New Bar";
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::Set {
+                var_name: "foo".to_string(),
+                rhs: SetRhs::new_class("Bar"),
             })]
         );
     }

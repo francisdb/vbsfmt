@@ -64,7 +64,7 @@ where
                 };
                 ast::Expr::Literal(lit)
             }
-            T![ident] => {
+            T![ident] | T![me] => {
                 let full_ident = self.ident_deep();
                 // if !self.at(T!['(']) {
                 //     // plain identifier or sub call
@@ -360,6 +360,24 @@ mod test {
                     rhs: Box::new(Literal(Lit::str(" "))),
                 }),
                 rhs: Box::new(ast::Expr::IdentFnSubCall(ast::FullIdent::ident("name"))),
+            }
+        );
+    }
+
+    #[test]
+    fn test_me_property_assignment() {
+        let input = "Me.Name = \"John\"";
+        let mut parser = Parser::new(input);
+        let expr = parser.expression();
+        assert_eq!(
+            expr,
+            ast::Expr::InfixOp {
+                op: T![=],
+                lhs: Box::new(ast::Expr::IdentFnSubCall(ast::FullIdent {
+                    base: ast::IdentPart::ident("Me"),
+                    property_accesses: vec![ast::IdentPart::ident("Name")],
+                })),
+                rhs: Box::new(Literal(Lit::str("John"))),
             }
         );
     }
