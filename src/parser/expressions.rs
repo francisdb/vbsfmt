@@ -64,7 +64,7 @@ where
                 };
                 ast::Expr::Literal(lit)
             }
-            T![ident] | T![me] => {
+            T![ident] | T![me] | T![property_access] => {
                 let full_ident = self.ident_deep();
                 // if !self.at(T!['(']) {
                 //     // plain identifier or sub call

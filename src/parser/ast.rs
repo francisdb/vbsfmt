@@ -306,6 +306,10 @@ pub enum Stmt {
         fn_name: FullIdent,
         args: Vec<Option<Expr>>,
     },
+    With {
+        object: FullIdent,
+        body: Vec<Stmt>,
+    },
     ExitDo,
     ExitFor,
     ExitFunction,

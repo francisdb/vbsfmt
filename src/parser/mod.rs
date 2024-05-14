@@ -1527,4 +1527,43 @@ Const a = 1			' some info
             },]
         );
     }
+
+    #[test]
+    fn test_parse_with() {
+        let input = indoc! {r#"
+            With foo.obj
+                .bar = 1
+                .baz.z = x
+                x = .qux
+            End With
+        "#};
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::With {
+                object: FullIdent {
+                    base: IdentPart::ident("foo"),
+                    property_accesses: vec![IdentPart::ident("obj")],
+                },
+                body: vec![
+                    Stmt::Assignment {
+                        full_ident: FullIdent::ident(".bar"),
+                        value: Box::new(Expr::Literal(Lit::Int(1))),
+                    },
+                    Stmt::Assignment {
+                        full_ident: FullIdent {
+                            base: IdentPart::ident(".baz"),
+                            property_accesses: vec![IdentPart::ident("z")],
+                        },
+                        value: Box::new(Expr::ident("x")),
+                    },
+                    Stmt::Assignment {
+                        full_ident: FullIdent::ident("x"),
+                        value: Box::new(Expr::IdentFnSubCall(FullIdent::ident(".qux"))),
+                    },
+                ],
+            })]
+        );
+    }
 }
