@@ -109,7 +109,9 @@ End Property
 #[derive(Debug, Clone, PartialEq)]
 pub struct IdentPart {
     pub name: String,
-    pub array_indices: Vec<Expr>,
+    // there might be multiple array indices
+    // eg a(1,2)(2)
+    pub array_indices: Vec<Vec<Expr>>,
 }
 
 impl IdentPart {
@@ -125,12 +127,11 @@ impl Display for IdentPart {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)?;
 
-        // indices coma-space separated between parens
-        if !self.array_indices.is_empty() {
+        for indices in &self.array_indices {
             write!(f, "(")?;
-            for (i, index) in self.array_indices.iter().enumerate() {
+            for (i, index) in indices.iter().enumerate() {
                 write!(f, "{}", index)?;
-                if i < self.array_indices.len() - 1 {
+                if i < indices.len() - 1 {
                     write!(f, ", ")?;
                 }
             }
@@ -202,6 +203,14 @@ pub enum Expr {
 impl Expr {
     pub fn ident(name: impl Into<String>) -> Self {
         Expr::IdentFnSubCall(FullIdent::ident(name))
+    }
+
+    pub fn int(i: usize) -> Self {
+        Expr::Literal(Lit::Int(i))
+    }
+
+    pub fn str(s: impl Into<String>) -> Self {
+        Expr::Literal(Lit::Str(s.into()))
     }
 }
 

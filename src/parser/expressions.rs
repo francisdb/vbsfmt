@@ -35,7 +35,7 @@ where
                 // implement our own parser for VBScript literals
                 let lit = match lit {
                     T![integer_literal] => {
-                        ast::Lit::Int(literal_text.parse().unwrap_or_else(|_| {
+                        Lit::Int(literal_text.parse().unwrap_or_else(|_| {
                             panic!("invalid integer literal: `{literal_text}`")
                         }))
                     }
@@ -249,6 +249,7 @@ impl Operator for TokenKind {
 mod test {
     use super::*;
     use crate::parser::ast::Expr::Literal;
+    use ast::*;
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -258,13 +259,13 @@ mod test {
         let expr = parser.expression();
         assert_eq!(
             expr,
-            ast::Expr::InfixOp {
+            Expr::InfixOp {
                 op: T![+],
-                lhs: Box::new(ast::Expr::Literal(Lit::Int(1))),
-                rhs: Box::new(ast::Expr::InfixOp {
+                lhs: Box::new(Expr::int(1)),
+                rhs: Box::new(Expr::InfixOp {
                     op: T![*],
-                    lhs: Box::new(ast::Expr::Literal(Lit::Int(2))),
-                    rhs: Box::new(ast::Expr::Literal(Lit::Int(3))),
+                    lhs: Box::new(Expr::int(2)),
+                    rhs: Box::new(Expr::int(3)),
                 }),
             }
         );
@@ -277,10 +278,10 @@ mod test {
         let expr = parser.expression();
         assert_eq!(
             expr,
-            ast::Expr::InfixOp {
+            Expr::InfixOp {
                 op: T![and],
-                lhs: Box::new(ast::Expr::IdentFnSubCall(ast::FullIdent::ident("col"))),
-                rhs: Box::new(ast::Expr::Literal(Lit::Int(0xFF))),
+                lhs: Box::new(Expr::IdentFnSubCall(FullIdent::ident("col"))),
+                rhs: Box::new(Expr::int(0xFF)),
             }
         );
     }
@@ -292,10 +293,10 @@ mod test {
         let expr = parser.expression();
         assert_eq!(
             expr,
-            ast::Expr::InfixOp {
+            Expr::InfixOp {
                 op: T![is],
-                lhs: Box::new(ast::Expr::IdentFnSubCall(ast::FullIdent {
-                    base: ast::IdentPart::ident("varValue"),
+                lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
+                    base: IdentPart::ident("varValue"),
                     property_accesses: Vec::new(),
                 })),
                 rhs: Box::new(Literal(Lit::Nothing)),
@@ -310,12 +311,12 @@ mod test {
         let expr = parser.expression();
         assert_eq!(
             expr,
-            ast::Expr::PrefixOp {
+            Expr::PrefixOp {
                 op: T![not],
-                expr: Box::new(ast::Expr::InfixOp {
+                expr: Box::new(Expr::InfixOp {
                     op: T![is],
-                    lhs: Box::new(ast::Expr::IdentFnSubCall(ast::FullIdent {
-                        base: ast::IdentPart::ident("varValue"),
+                    lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
+                        base: IdentPart::ident("varValue"),
                         property_accesses: Vec::new(),
                     })),
                     rhs: Box::new(Literal(Lit::Nothing)),
@@ -331,14 +332,14 @@ mod test {
         let expr = parser.expression();
         assert_eq!(
             expr,
-            ast::Expr::InfixOp {
+            Expr::InfixOp {
                 op: T![=],
-                lhs: Box::new(ast::Expr::IdentFnSubCall(ast::FullIdent {
-                    base: ast::IdentPart::ident("varValue"),
+                lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
+                    base: IdentPart::ident("varValue"),
                     property_accesses: Vec::new(),
                 })),
-                rhs: Box::new(ast::Expr::IdentFnSubCall(ast::FullIdent {
-                    base: ast::IdentPart::ident("varValue2"),
+                rhs: Box::new(Expr::IdentFnSubCall(FullIdent {
+                    base: IdentPart::ident("varValue2"),
                     property_accesses: Vec::new(),
                 })),
             }
@@ -352,14 +353,14 @@ mod test {
         let expr = parser.expression();
         assert_eq!(
             expr,
-            ast::Expr::InfixOp {
+            Expr::InfixOp {
                 op: T![&],
-                lhs: Box::new(ast::Expr::InfixOp {
+                lhs: Box::new(Expr::InfixOp {
                     op: T![&],
                     lhs: Box::new(Literal(Lit::str("Hello"))),
                     rhs: Box::new(Literal(Lit::str(" "))),
                 }),
-                rhs: Box::new(ast::Expr::IdentFnSubCall(ast::FullIdent::ident("name"))),
+                rhs: Box::new(Expr::IdentFnSubCall(FullIdent::ident("name"))),
             }
         );
     }
@@ -371,11 +372,11 @@ mod test {
         let expr = parser.expression();
         assert_eq!(
             expr,
-            ast::Expr::InfixOp {
+            Expr::InfixOp {
                 op: T![=],
-                lhs: Box::new(ast::Expr::IdentFnSubCall(ast::FullIdent {
-                    base: ast::IdentPart::ident("Me"),
-                    property_accesses: vec![ast::IdentPart::ident("Name")],
+                lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
+                    base: IdentPart::ident("Me"),
+                    property_accesses: vec![IdentPart::ident("Name")],
                 })),
                 rhs: Box::new(Literal(Lit::str("John"))),
             }

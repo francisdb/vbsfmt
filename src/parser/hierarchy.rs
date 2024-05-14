@@ -828,6 +828,15 @@ where
         arguments
     }
 
+    fn multi_parenthesized_arguments(&mut self) -> Vec<Vec<Expr>> {
+        let mut arguments = Vec::new();
+        while self.at(T!['(']) {
+            let group = self.parenthesized_arguments();
+            arguments.push(group);
+        }
+        arguments
+    }
+
     fn optional_parenthesized_property_arguments(&mut self) -> Vec<(String, ArgumentType)> {
         let mut property_arguments = Vec::new();
         if self.at(T!['(']) {
@@ -886,8 +895,7 @@ where
                 );
             }
         };
-        // TODO is `foo(1)(2)` valid syntax?
-        let array_indices = self.parenthesized_arguments();
+        let array_indices = self.multi_parenthesized_arguments();
         IdentPart {
             name: ident,
             array_indices,
@@ -901,7 +909,7 @@ where
         // TODO should property access work with spaces? `foo . bar . baz`
         while self.at(T![property_access]) {
             let name = self.property();
-            let array_indices = self.parenthesized_arguments();
+            let array_indices = self.multi_parenthesized_arguments();
             property_accesses.push(IdentPart {
                 name,
                 array_indices,

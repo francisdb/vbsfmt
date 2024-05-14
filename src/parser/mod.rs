@@ -88,6 +88,10 @@ where
             }
             T![:] => {
                 self.consume(T![:]);
+                // if there is a newline directly after the colon, consume it
+                if self.at(T![nl]) {
+                    self.consume(T![nl]);
+                }
             }
             other => panic!(
                 "Unexpected token at line {}, column {}. Expected newline or colon, but found {}",
@@ -234,11 +238,11 @@ Const a = 1			' some info
     fn parse_expression() {
         // Weird spaces are to test that whitespace gets filtered out
         let expr = parse("42");
-        assert_eq!(expr, Expr::Literal(Lit::Int(42)));
+        assert_eq!(expr, Expr::int(42));
         let expr = parse("  2.7768");
         assert_eq!(expr, Expr::Literal(Lit::Float(2.7768)));
         let expr = parse(r#""I am a String!""#);
-        assert_eq!(expr, Expr::Literal(Lit::Str("I am a String!".to_string())));
+        assert_eq!(expr, Expr::str("I am a String!".to_string()));
         let expr = parse("foo");
         assert_eq!(expr, ast::Expr::ident("foo"));
         let expr = parse("bar (  x, 2)");
@@ -247,7 +251,7 @@ Const a = 1			' some info
             Expr::IdentFnSubCall(FullIdent {
                 base: IdentPart {
                     name: "bar".to_string(),
-                    array_indices: vec![Expr::ident("x".to_string()), Expr::Literal(Lit::Int(2)),],
+                    array_indices: vec![vec![Expr::ident("x"), Expr::int(2),]],
                 },
                 property_accesses: vec![],
             },)
@@ -257,7 +261,7 @@ Const a = 1			' some info
             expr,
             Expr::PrefixOp {
                 op: T![not],
-                expr: Box::new(Expr::ident("is_visible".to_string())),
+                expr: Box::new(Expr::ident("is_visible")),
             }
         );
         let expr = parse("(-13)");
@@ -265,7 +269,7 @@ Const a = 1			' some info
             expr,
             Expr::PrefixOp {
                 op: T![-],
-                expr: Box::new(Expr::Literal(Lit::Int(13))),
+                expr: Box::new(Expr::int(13)),
             }
         );
     }
@@ -294,6 +298,33 @@ Const a = 1			' some info
         assert_eq!(expr.to_string(), "((2 / ((3 + 4) * (5 - 6))) * 7)");
 
         let expr = parse("min ( test + 4 , sin(2*PI ))");
+        assert_eq!(
+            expr,
+            Expr::IdentFnSubCall(FullIdent {
+                base: IdentPart {
+                    name: "min".to_string(),
+                    array_indices: vec![vec![
+                        Expr::InfixOp {
+                            op: T![+],
+                            lhs: Box::new(Expr::ident("test")),
+                            rhs: Box::new(Expr::int(4)),
+                        },
+                        Expr::IdentFnSubCall(FullIdent {
+                            base: IdentPart {
+                                name: "sin".to_string(),
+                                array_indices: vec![vec![Expr::InfixOp {
+                                    op: T![*],
+                                    lhs: Box::new(Expr::int(2)),
+                                    rhs: Box::new(Expr::ident("PI")),
+                                },],],
+                            },
+                            property_accesses: vec![],
+                        }),
+                    ],],
+                },
+                property_accesses: vec![],
+            })
+        );
         assert_eq!(expr.to_string(), "min((test + 4), sin((2 * PI)))");
     }
 
@@ -311,12 +342,12 @@ Const a = 1			' some info
             Stmt::IfStmt {
                 condition: Box::new(Expr::InfixOp {
                     op: T![>],
-                    lhs: Box::new(Expr::ident("x".to_string())),
-                    rhs: Box::new(Expr::Literal(Lit::Int(2))),
+                    lhs: Box::new(Expr::ident("x")),
+                    rhs: Box::new(Expr::int(2)),
                 }),
                 body: vec![Stmt::Assignment {
                     full_ident: FullIdent::ident("x"),
-                    value: Box::new(Expr::Literal(Lit::Int(4))),
+                    value: Box::new(Expr::int(4)),
                 }],
                 elseif_statements: vec![],
                 else_stmt: None,
@@ -339,14 +370,14 @@ Const a = 1			' some info
                 condition: Box::new(Expr::InfixOp {
                     op: T![<],
                     lhs: Box::new(Expr::ident("x")),
-                    rhs: Box::new(Expr::Literal(Lit::Int(5))),
+                    rhs: Box::new(Expr::int(5)),
                 }),
                 body: vec![Stmt::Assignment {
                     full_ident: FullIdent::ident("x"),
                     value: Box::new(Expr::InfixOp {
                         op: T![+],
-                        lhs: Box::new(Expr::ident("x".to_string())),
-                        rhs: Box::new(Expr::Literal(Lit::Int(1))),
+                        lhs: Box::new(Expr::ident("x")),
+                        rhs: Box::new(Expr::int(1)),
                     }),
                 },],
             }
@@ -366,15 +397,15 @@ Const a = 1			' some info
             stmt,
             Stmt::ForStmt {
                 counter: "i".to_string(),
-                start: Box::new(Expr::Literal(Lit::Int(1))),
-                end: Box::new(Expr::Literal(Lit::Int(10))),
+                start: Box::new(Expr::int(1)),
+                end: Box::new(Expr::int(10)),
                 step: None,
                 body: vec![Stmt::Assignment {
                     full_ident: FullIdent::ident("x"),
                     value: Box::new(Expr::InfixOp {
                         op: T![+],
-                        lhs: Box::new(Expr::ident("x".to_string())),
-                        rhs: Box::new(Expr::ident("i".to_string())),
+                        lhs: Box::new(Expr::ident("x")),
+                        rhs: Box::new(Expr::ident("i")),
                     }),
                 }],
             }
@@ -395,23 +426,23 @@ Const a = 1			' some info
             stmt,
             Stmt::ForStmt {
                 counter: "i".to_string(),
-                start: Box::new(Expr::Literal(Lit::Int(1))),
-                end: Box::new(Expr::Literal(Lit::Int(10))),
+                start: Box::new(Expr::int(1)),
+                end: Box::new(Expr::int(10)),
                 step: None,
                 body: vec![
                     Stmt::Assignment {
                         full_ident: FullIdent::ident("x"),
                         value: Box::new(Expr::InfixOp {
                             op: T![*],
-                            lhs: Box::new(Expr::ident("x".to_string())),
-                            rhs: Box::new(Expr::ident("i".to_string())),
+                            lhs: Box::new(Expr::ident("x")),
+                            rhs: Box::new(Expr::ident("i")),
                         }),
                     },
                     Stmt::IfStmt {
                         condition: Box::new(Expr::InfixOp {
                             op: T![>],
-                            lhs: Box::new(Expr::ident("x".to_string())),
-                            rhs: Box::new(Expr::Literal(Lit::Int(10))),
+                            lhs: Box::new(Expr::ident("x")),
+                            rhs: Box::new(Expr::int(10)),
                         }),
                         body: vec![Stmt::ExitFor],
                         elseif_statements: vec![],
@@ -435,9 +466,9 @@ Const a = 1			' some info
             file,
             vec![Item::Statement(Stmt::ForStmt {
                 counter: "i".to_string(),
-                start: Box::new(Expr::ident("For_nr".to_string())),
-                end: Box::new(Expr::ident("Next_nr".to_string())),
-                step: Some(Box::new(Expr::ident("Bdir".to_string()))),
+                start: Box::new(Expr::ident("For_nr")),
+                end: Box::new(Expr::ident("Next_nr")),
+                step: Some(Box::new(Expr::ident("Bdir"))),
                 body: vec![],
             }),]
         );
@@ -452,31 +483,31 @@ Const a = 1			' some info
             stmt,
             Stmt::ForStmt {
                 counter: "x".to_string(),
-                start: Box::new(Expr::Literal(Lit::Int(1))),
+                start: Box::new(Expr::int(1)),
                 end: Box::new(Expr::InfixOp {
                     op: T![+],
                     lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
                         base: IdentPart {
                             name: "PlayerMode".to_string(),
-                            array_indices: vec![Expr::IdentFnSubCall(FullIdent {
+                            array_indices: vec![vec![Expr::IdentFnSubCall(FullIdent {
                                 base: IdentPart::ident("currentplayer"),
                                 property_accesses: vec![],
-                            }),],
+                            }),]],
                         },
                         property_accesses: vec![],
                     })),
-                    rhs: Box::new(Expr::Literal(Lit::Int(1))),
+                    rhs: Box::new(Expr::int(1)),
                 }),
                 step: None,
                 body: vec![Stmt::Assignment {
                     full_ident: FullIdent {
                         base: IdentPart {
                             name: "Blink".to_string(),
-                            array_indices: vec![Expr::ident("x"), Expr::Literal(Lit::Int(1))],
+                            array_indices: vec![vec![Expr::ident("x"), Expr::int(1)]],
                         },
                         property_accesses: vec![],
                     },
-                    value: Box::new(Expr::Literal(Lit::Int(1))),
+                    value: Box::new(Expr::int(1)),
                 },],
             }
         );
@@ -495,7 +526,7 @@ Const a = 1			' some info
             stmt,
             Stmt::ForEachStmt {
                 element: "dog".to_string(),
-                group: Box::new(Expr::ident("dogs".to_string())),
+                group: Box::new(Expr::ident("dogs")),
                 body: vec![Stmt::Assignment {
                     full_ident: FullIdent {
                         base: IdentPart::ident("dog"),
@@ -518,14 +549,14 @@ Const a = 1			' some info
             stmt,
             Stmt::ForEachStmt {
                 element: "dog".to_string(),
-                group: Box::new(Expr::ident("dogs".to_string())),
+                group: Box::new(Expr::ident("dogs")),
                 body: vec![
                     Stmt::Assignment {
                         full_ident: FullIdent {
                             base: IdentPart::ident("dog"),
                             property_accesses: vec![IdentPart::ident("volume")],
                         },
-                        value: Box::new(Expr::Literal(Lit::Int(0))),
+                        value: Box::new(Expr::int(0)),
                     },
                     Stmt::Assignment {
                         full_ident: FullIdent {
@@ -632,7 +663,7 @@ Const a = 1			' some info
                             base: IdentPart::ident("Light030"),
                             property_accesses: vec![IdentPart::ident("state")],
                         },
-                        value: Box::new(Expr::Literal(Lit::Int(0))),
+                        value: Box::new(Expr::int(0)),
                     },
                 ],
             }
@@ -664,7 +695,7 @@ Const a = 1			' some info
                     parameters: vec![Argument::ByVal("a".to_string())],
                     body: vec![Stmt::Assignment {
                         full_ident: FullIdent::ident("test2"),
-                        value: Box::new(Expr::ident("a".to_string())),
+                        value: Box::new(Expr::ident("a")),
                     }],
                 },
             ]
@@ -740,14 +771,11 @@ Const a = 1			' some info
                 }),
                 Item::Statement(Stmt::SubCall {
                     fn_name: FullIdent::ident("test"),
-                    args: vec![Some(Expr::Literal(Lit::Int(1)))],
+                    args: vec![Some(Expr::int(1))],
                 }),
                 Item::Statement(Stmt::SubCall {
                     fn_name: FullIdent::ident("test"),
-                    args: vec![
-                        Some(Expr::Literal(Lit::Int(1))),
-                        Some(Expr::Literal(Lit::Int(2)))
-                    ],
+                    args: vec![Some(Expr::int(1)), Some(Expr::int(2))],
                 }),
             ]
         );
@@ -782,10 +810,10 @@ Const a = 1			' some info
         assert_eq!(
             stmt,
             Stmt::IfStmt {
-                condition: Box::new(Expr::ident("Err".to_string())),
+                condition: Box::new(Expr::ident("Err")),
                 body: vec![Stmt::SubCall {
                     fn_name: FullIdent::ident("MsgBox"),
-                    args: vec![Some(Expr::Literal(Lit::Str("Oh noes".to_string())))],
+                    args: vec![Some(Expr::str("Oh noes"))],
                 }],
                 elseif_statements: vec![],
                 else_stmt: None,
@@ -801,15 +829,15 @@ Const a = 1			' some info
         assert_eq!(
             stmt,
             Stmt::IfStmt {
-                condition: Box::new(Expr::ident("Err".to_string())),
+                condition: Box::new(Expr::ident("Err")),
                 body: vec![
                     Stmt::SubCall {
                         fn_name: FullIdent::ident("MsgBox"),
-                        args: vec![Some(Expr::Literal(Lit::Str("Oh noes".to_string())))],
+                        args: vec![Some(Expr::str("Oh noes"))],
                     },
                     Stmt::SubCall {
                         fn_name: FullIdent::ident("MsgBox"),
-                        args: vec![Some(Expr::Literal(Lit::Str("Crash".to_string())))],
+                        args: vec![Some(Expr::str("Crash"))],
                     }
                 ],
                 elseif_statements: vec![],
@@ -828,15 +856,15 @@ Const a = 1			' some info
             Stmt::IfStmt {
                 condition: Box::new(Expr::InfixOp {
                     op: T![>],
-                    lhs: Box::new(Expr::ident("VRRoom".to_string())),
-                    rhs: Box::new(Expr::Literal(Lit::Int(0))),
+                    lhs: Box::new(Expr::ident("VRRoom")),
+                    rhs: Box::new(Expr::int(0)),
                 }),
                 body: vec![Stmt::Assignment {
                     full_ident: FullIdent {
                         base: IdentPart::ident("bbs006"),
                         property_accesses: vec![IdentPart::ident("state")],
                     },
-                    value: Box::new(Expr::ident("x2".to_string())),
+                    value: Box::new(Expr::ident("x2")),
                 }],
                 elseif_statements: vec![],
                 else_stmt: Some(vec![
@@ -845,20 +873,14 @@ Const a = 1			' some info
                             base: IdentPart::ident("controller"),
                             property_accesses: vec![IdentPart::ident("B2SSetData")],
                         },
-                        args: vec![
-                            Some(Expr::Literal(Lit::Int(50))),
-                            Some(Expr::ident("x2".to_string())),
-                        ],
+                        args: vec![Some(Expr::int(50)), Some(Expr::ident("x2")),],
                     },
                     Stmt::SubCall {
                         fn_name: FullIdent {
                             base: IdentPart::ident("controller"),
                             property_accesses: vec![IdentPart::ident("B2SSetData")],
                         },
-                        args: vec![
-                            Some(Expr::Literal(Lit::Int(53))),
-                            Some(Expr::ident("x2".to_string())),
-                        ],
+                        args: vec![Some(Expr::int(53)), Some(Expr::ident("x2")),],
                     },
                 ]),
             }
@@ -879,7 +901,7 @@ Const a = 1			' some info
                 Item::Statement(Stmt::IfStmt {
                     condition: Box::new(Expr::InfixOp {
                         op: T![<>],
-                        lhs: Box::new(Expr::ident("x".to_string())),
+                        lhs: Box::new(Expr::ident("x")),
                         rhs: Box::new(Expr::Literal(Lit::Str("".to_string()))),
                     }),
                     body: vec![Stmt::Assignment {
@@ -887,7 +909,7 @@ Const a = 1			' some info
                         value: Box::new(Expr::IdentFnSubCall(FullIdent {
                             base: IdentPart {
                                 name: "CDbl".to_string(),
-                                array_indices: vec![Expr::ident("x".to_string())],
+                                array_indices: vec![vec![Expr::ident("x")]],
                             },
                             property_accesses: vec![],
                         })),
@@ -895,18 +917,18 @@ Const a = 1			' some info
                     elseif_statements: vec![],
                     else_stmt: Some(vec![Stmt::Assignment {
                         full_ident: FullIdent::ident("LutValue"),
-                        value: Box::new(Expr::Literal(Lit::Int(1))),
+                        value: Box::new(Expr::int(1)),
                     }]),
                 }),
                 Item::Statement(Stmt::IfStmt {
                     condition: Box::new(Expr::InfixOp {
                         op: T![<],
-                        lhs: Box::new(Expr::ident("LutValue".to_string())),
-                        rhs: Box::new(Expr::Literal(Lit::Int(1))),
+                        lhs: Box::new(Expr::ident("LutValue")),
+                        rhs: Box::new(Expr::int(1)),
                     }),
                     body: vec![Stmt::Assignment {
                         full_ident: FullIdent::ident("LutValue"),
-                        value: Box::new(Expr::Literal(Lit::Int(1))),
+                        value: Box::new(Expr::int(1)),
                     }],
                     elseif_statements: vec![],
                     else_stmt: None,
@@ -925,17 +947,17 @@ Const a = 1			' some info
             Stmt::IfStmt {
                 condition: Box::new(Expr::InfixOp {
                     op: T![>],
-                    lhs: Box::new(Expr::ident("x".to_string())),
-                    rhs: Box::new(Expr::Literal(Lit::Int(2))),
+                    lhs: Box::new(Expr::ident("x")),
+                    rhs: Box::new(Expr::int(2)),
                 }),
                 body: vec![Stmt::Assignment {
                     full_ident: FullIdent::ident("y"),
-                    value: Box::new(Expr::Literal(Lit::Int(3))),
+                    value: Box::new(Expr::int(3)),
                 }],
                 elseif_statements: vec![],
                 else_stmt: Some(vec![Stmt::Assignment {
                     full_ident: FullIdent::ident("y"),
-                    value: Box::new(Expr::Literal(Lit::Int(4))),
+                    value: Box::new(Expr::int(4)),
                 }]),
             }
         );
@@ -955,14 +977,14 @@ Const a = 1			' some info
             vec![Item::Statement(Stmt::IfStmt {
                 condition: Box::new(Expr::InfixOp {
                     op: T![>],
-                    lhs: Box::new(Expr::ident("x".to_string())),
-                    rhs: Box::new(Expr::Literal(Lit::Int(2))),
+                    lhs: Box::new(Expr::ident("x")),
+                    rhs: Box::new(Expr::int(2)),
                 }),
                 body: vec![Stmt::IfStmt {
                     condition: Box::new(Expr::InfixOp {
                         op: T![or],
-                        lhs: Box::new(Expr::ident("This".to_string())),
-                        rhs: Box::new(Expr::ident("That".to_string())),
+                        lhs: Box::new(Expr::ident("This")),
+                        rhs: Box::new(Expr::ident("That")),
                     }),
                     body: vec![Stmt::SubCall {
                         fn_name: FullIdent::ident("DoSomething"),
@@ -993,10 +1015,7 @@ Const a = 1			' some info
         assert_eq!(
             stmt,
             Stmt::Dim {
-                vars: vec![(
-                    "x".to_string(),
-                    vec![Expr::Literal(Lit::Int(1)), Expr::Literal(Lit::Int(2))]
-                )],
+                vars: vec![("x".to_string(), vec![Expr::int(1), Expr::int(2)])],
             }
         );
     }
@@ -1009,7 +1028,7 @@ Const a = 1			' some info
         assert_eq!(
             stmt,
             Stmt::Dim {
-                vars: vec![("PlayerMode".to_string(), vec![Expr::Literal(Lit::Int(2))])],
+                vars: vec![("PlayerMode".to_string(), vec![Expr::int(2)])],
             }
         );
     }
@@ -1029,8 +1048,8 @@ Const a = 1			' some info
                         "z".to_string(),
                         vec![Expr::InfixOp {
                             op: T![+],
-                            lhs: Box::new(Expr::Literal(Lit::Int(1))),
-                            rhs: Box::new(Expr::Literal(Lit::Int(3))),
+                            lhs: Box::new(Expr::int(1)),
+                            rhs: Box::new(Expr::int(3)),
                         }]
                     ),
                 ],
@@ -1047,7 +1066,7 @@ Const a = 1			' some info
             stmt,
             Stmt::Const {
                 var_name: "x".to_string(),
-                value: Box::new(Expr::Literal(Lit::Int(42))),
+                value: Box::new(Expr::int(42)),
             }
         );
     }
@@ -1065,11 +1084,11 @@ Const a = 1			' some info
             vec![
                 Item::Statement(Stmt::Const {
                     var_name: "x".to_string(),
-                    value: Box::new(Expr::Literal(Lit::Int(42))),
+                    value: Box::new(Expr::int(42)),
                 }),
                 Item::Statement(Stmt::Const {
                     var_name: "y".to_string(),
-                    value: Box::new(Expr::Literal(Lit::Int(13))),
+                    value: Box::new(Expr::int(13)),
                 }),
             ]
         );
@@ -1169,19 +1188,19 @@ Const a = 1			' some info
                         lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
                             base: IdentPart {
                                 name: "uBound".to_string(),
-                                array_indices: vec![Expr::ident("aArray".to_string())],
+                                array_indices: vec![vec![Expr::ident("aArray")]],
                             },
                             property_accesses: vec![],
                         })),
                         rhs: Box::new(Expr::IdentFnSubCall(FullIdent {
                             base: IdentPart {
                                 name: "uBound".to_string(),
-                                array_indices: vec![Expr::ident("aInput".to_string())],
+                                array_indices: vec![vec![Expr::ident("aInput")]],
                             },
                             property_accesses: vec![],
                         })),
                     }),
-                    rhs: Box::new(Expr::Literal(Lit::Int(1))),
+                    rhs: Box::new(Expr::int(1)),
                 },],
             })]
         );
@@ -1209,12 +1228,12 @@ Const a = 1			' some info
                     condition: Box::new(Expr::InfixOp {
                         op: T![=],
                         lhs: Box::new(Expr::ident("RenderingMode")),
-                        rhs: Box::new(Expr::Literal(Lit::Int(2))),
+                        rhs: Box::new(Expr::int(2)),
                     }),
                     body: vec![
                         Stmt::Assignment {
                             full_ident: FullIdent::ident("test"),
-                            value: Box::new(Expr::Literal(Lit::Int(1))),
+                            value: Box::new(Expr::int(1)),
                         },
                         Stmt::SubCall {
                             fn_name: FullIdent::ident("startcontroller"),
@@ -1225,12 +1244,12 @@ Const a = 1			' some info
                         Box::new(Expr::InfixOp {
                             op: T![=],
                             lhs: Box::new(Expr::ident("RenderingMode")),
-                            rhs: Box::new(Expr::Literal(Lit::Int(3))),
+                            rhs: Box::new(Expr::int(3)),
                         }),
                         vec![
                             Stmt::Assignment {
                                 full_ident: FullIdent::ident("test"),
-                                value: Box::new(Expr::Literal(Lit::Int(2))),
+                                value: Box::new(Expr::int(2)),
                             },
                             Stmt::SubCall {
                                 fn_name: FullIdent::ident("startcontroller"),
@@ -1240,7 +1259,7 @@ Const a = 1			' some info
                     )],
                     else_stmt: Some(vec![Stmt::Assignment {
                         full_ident: FullIdent::ident("test"),
-                        value: Box::new(Expr::Literal(Lit::Int(0))),
+                        value: Box::new(Expr::int(0)),
                     }]),
                 }),
             ]
@@ -1258,14 +1277,14 @@ Const a = 1			' some info
                 full_ident: FullIdent {
                     base: IdentPart {
                         name: "objectArray".to_string(),
-                        array_indices: vec![Expr::ident("i".to_string())],
+                        array_indices: vec![vec![Expr::ident("i")]],
                     },
                     property_accesses: vec![IdentPart {
                         name: "image".to_string(),
                         array_indices: vec![],
                     }],
                 },
-                value: Box::new(Expr::Literal(Lit::Str("test".to_string()))),
+                value: Box::new(Expr::str("test")),
             })]
         );
     }
@@ -1311,26 +1330,26 @@ Const a = 1			' some info
         assert_eq!(
             items,
             vec![Item::Statement(Stmt::SelectCase {
-                test_expr: Box::new(Expr::ident("x".to_string())),
+                test_expr: Box::new(Expr::ident("x")),
                 cases: vec![
                     (
-                        vec![Expr::Literal(Lit::Int(1)), Expr::Literal(Lit::Int(2)),],
+                        vec![Expr::int(1), Expr::int(2),],
                         vec![Stmt::Assignment {
                             full_ident: FullIdent::ident("y"),
-                            value: Box::new(Expr::Literal(Lit::Int(2))),
+                            value: Box::new(Expr::int(2)),
                         }]
                     ),
                     (
-                        vec![Expr::Literal(Lit::Int(3))],
+                        vec![Expr::int(3)],
                         vec![Stmt::Assignment {
                             full_ident: FullIdent::ident("y"),
-                            value: Box::new(Expr::Literal(Lit::Int(3))),
+                            value: Box::new(Expr::int(3)),
                         }]
                     ),
                 ],
                 else_stmt: Some(vec![Stmt::Assignment {
                     full_ident: FullIdent::ident("y"),
-                    value: Box::new(Expr::Literal(Lit::Int(4))),
+                    value: Box::new(Expr::int(4)),
                 }]),
             })]
         );
@@ -1349,17 +1368,17 @@ Const a = 1			' some info
         assert_eq!(
             items,
             vec![Item::Statement(Stmt::SelectCase {
-                test_expr: Box::new(Expr::ident("x".to_string())),
+                test_expr: Box::new(Expr::ident("x")),
                 cases: vec![(
-                    vec![Expr::Literal(Lit::Int(1)), Expr::Literal(Lit::Int(2)),],
+                    vec![Expr::int(1), Expr::int(2),],
                     vec![Stmt::Assignment {
                         full_ident: FullIdent::ident("y"),
-                        value: Box::new(Expr::Literal(Lit::Int(2))),
+                        value: Box::new(Expr::int(2)),
                     }],
                 ),],
                 else_stmt: Some(vec![Stmt::Assignment {
                     full_ident: FullIdent::ident("y"),
-                    value: Box::new(Expr::Literal(Lit::Int(4))),
+                    value: Box::new(Expr::int(4)),
                 }]),
             })]
         );
@@ -1381,7 +1400,7 @@ Const a = 1			' some info
                     op: T![not],
                     expr: Box::new(Expr::InfixOp {
                         op: T![is],
-                        lhs: Box::new(Expr::ident("Controller".to_string())),
+                        lhs: Box::new(Expr::ident("Controller")),
                         rhs: Box::new(Expr::Literal(Lit::Nothing)),
                     }),
                 }),
@@ -1407,11 +1426,7 @@ Const a = 1			' some info
             stmt,
             Stmt::SubCall {
                 fn_name: FullIdent::ident("DoSomething"),
-                args: vec![
-                    Some(Expr::Literal(Lit::Int(1))),
-                    None,
-                    Some(Expr::Literal(Lit::Str("test".to_string()))),
-                ],
+                args: vec![Some(Expr::int(1)), None, Some(Expr::str("test")),],
             }
         );
     }
@@ -1571,7 +1586,7 @@ Const a = 1			' some info
                 body: vec![
                     Stmt::Assignment {
                         full_ident: FullIdent::ident(".bar"),
-                        value: Box::new(Expr::Literal(Lit::Int(1))),
+                        value: Box::new(Expr::int(1)),
                     },
                     Stmt::Assignment {
                         full_ident: FullIdent {
@@ -1586,6 +1601,48 @@ Const a = 1			' some info
                     },
                 ],
             })]
+        );
+    }
+
+    #[test]
+    fn test_parse_colon_without_remainder() {
+        let input = indoc! { r#"
+            Dim LutToggleSoundLevel : 
+            LutToggleSoundLevel = 0.5
+        "#};
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![
+                Item::Statement(Stmt::Dim {
+                    vars: vec![("LutToggleSoundLevel".to_string(), vec![])],
+                }),
+                Item::Statement(Stmt::Assignment {
+                    full_ident: FullIdent::ident("LutToggleSoundLevel"),
+                    value: Box::new(Expr::Literal(Lit::Float(0.5))),
+                }),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_double_array_access() {
+        let input = "foo(1)(2) = 3";
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(
+            stmt,
+            Stmt::Assignment {
+                full_ident: FullIdent {
+                    base: IdentPart {
+                        name: "foo".to_string(),
+                        array_indices: vec![vec![Expr::int(1)], vec![Expr::int(2)]],
+                    },
+                    property_accesses: vec![],
+                },
+                value: Box::new(Expr::int(3)),
+            }
         );
     }
 }
