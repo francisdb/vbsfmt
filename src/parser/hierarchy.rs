@@ -413,6 +413,7 @@ where
             T![on] => self.statement_on(),
             T![exit] => self.statement_exit(),
             T![with] => self.statement_with(),
+            T![call] => self.statement_call(),
             T![ident] | T![me] | T![property_access] => {
                 // TODO we don't want to allow property access in case we are not in a with block
                 let ident = self.ident_deep();
@@ -432,22 +433,7 @@ where
                     }
                 } else {
                     // sub call with args
-                    let mut args = Vec::new();
-                    while !self.at(T![:]) && !self.at(T![nl]) && !self.at(T![EOF]) {
-                        // // empty arguments are allowed
-                        if self.at(T![,]) {
-                            self.consume(T![,]);
-                            args.push(None);
-                            continue;
-                        }
-                        let arg = self.expression();
-                        args.push(Some(arg));
-                        if self.at(T![,]) {
-                            self.consume(T![,]);
-                        } else {
-                            break;
-                        }
-                    }
+                    let args = self.sub_arguments();
                     Stmt::SubCall {
                         fn_name: ident,
                         args,
@@ -466,6 +452,36 @@ where
             self.consume_line_delimiter();
         }
         stmt
+    }
+
+    fn statement_call(&mut self) -> Stmt {
+        self.consume(T![call]);
+        let ident = self.consume(T![ident]);
+        let name = self.text(&ident).to_string();
+        // TODO if there are no args the parens should be omitted
+        //   to validate on windows
+        let args = self.parenthesized_arguments();
+        Stmt::Call { name, args }
+    }
+
+    fn sub_arguments(&mut self) -> Vec<Option<Expr>> {
+        let mut args = Vec::new();
+        while !self.at(T![:]) && !self.at(T![nl]) && !self.at(T![EOF]) {
+            // empty arguments are allowed
+            if self.at(T![,]) {
+                self.consume(T![,]);
+                args.push(None);
+                continue;
+            }
+            let arg = self.expression();
+            args.push(Some(arg));
+            if self.at(T![,]) {
+                self.consume(T![,]);
+            } else {
+                break;
+            }
+        }
+        args
     }
 
     fn statement_dim(&mut self) -> Stmt {

@@ -1645,4 +1645,83 @@ Const a = 1			' some info
             }
         );
     }
+
+    #[test]
+    fn test_parse_call() {
+        let input = indoc! { r#"
+            Call MyFunction
+            Call MyOtherFunction(1, 2)
+        "#};
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![
+                Item::Statement(Stmt::Call {
+                    name: "MyFunction".to_string(),
+                    args: vec![],
+                }),
+                Item::Statement(Stmt::Call {
+                    name: "MyOtherFunction".to_string(),
+                    args: vec![Expr::int(1), Expr::int(2)],
+                }),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_sub_call_with_parens() {
+        // This is tricky because the parens are used for both function calls, array access
+        // but here they are part of the sub call first argument.
+        // Would the space in front of the parens make a difference?
+        let input = "AddScore (x + y) * z";
+
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(
+            stmt,
+            Stmt::SubCall {
+                fn_name: FullIdent::ident("AddScore"),
+                args: vec![Some(Expr::InfixOp {
+                    op: T![*],
+                    lhs: Box::new(Expr::InfixOp {
+                        op: T![+],
+                        lhs: Box::new(Expr::ident("x")),
+                        rhs: Box::new(Expr::ident("y")),
+                    }),
+                    rhs: Box::new(Expr::ident("z"))
+                })],
+            },
+        );
+    }
+
+    #[test]
+    fn test_parse_function_or_array_call_with_parens() {
+        // This is tricky because the parens are used for both function calls, array access
+        let input = "x = AddScore(x + y) * z";
+
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(
+            stmt,
+            Stmt::Assignment {
+                full_ident: FullIdent::ident("x"),
+                value: Box::new(Expr::InfixOp {
+                    op: T![*],
+                    lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
+                        base: IdentPart {
+                            name: "AddScore".to_string(),
+                            array_indices: vec![vec![Expr::InfixOp {
+                                op: T![+],
+                                lhs: Box::new(Expr::ident("x")),
+                                rhs: Box::new(Expr::ident("y")),
+                            }],],
+                        },
+                        property_accesses: vec![],
+                    })),
+                    rhs: Box::new(Expr::ident("z")),
+                }),
+            },
+        );
+    }
 }

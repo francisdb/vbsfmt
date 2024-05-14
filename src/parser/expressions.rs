@@ -23,7 +23,8 @@ where
             | lit @ T![true]
             | lit @ T![false]
             | lit @ T![nothing]
-            | lit @ T![empty] => {
+            | lit @ T![empty]
+            | lit @ T![null] => {
                 let literal_text = {
                     // the calls on `self` need to be split, because `next` takes
                     // `&mut self` if `peek` is not `T![EOF]`, then there must be
@@ -60,6 +61,7 @@ where
                     T![false] => Lit::Bool(false),
                     T![nothing] => Lit::Nothing,
                     T![empty] => Lit::Empty,
+                    T![null] => Lit::Null,
                     _ => unreachable!(),
                 };
                 ast::Expr::Literal(lit)
@@ -253,7 +255,7 @@ mod test {
     use pretty_assertions::assert_eq;
 
     #[test]
-    fn test_expression() {
+    fn test_expression_operator_priority() {
         let input = "1 + 2 * 3";
         let mut parser = Parser::new(input);
         let expr = parser.expression();
@@ -267,6 +269,25 @@ mod test {
                     lhs: Box::new(Expr::int(2)),
                     rhs: Box::new(Expr::int(3)),
                 }),
+            }
+        );
+    }
+
+    #[test]
+    fn test_expression_with_parentheses() {
+        let input = "(1 + 2) * 3";
+        let mut parser = Parser::new(input);
+        let expr = parser.expression();
+        assert_eq!(
+            expr,
+            Expr::InfixOp {
+                op: T![*],
+                lhs: Box::new(Expr::InfixOp {
+                    op: T![+],
+                    lhs: Box::new(Expr::int(1)),
+                    rhs: Box::new(Expr::int(2)),
+                }),
+                rhs: Box::new(Expr::int(3)),
             }
         );
     }

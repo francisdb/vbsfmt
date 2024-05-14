@@ -222,6 +222,7 @@ pub enum Lit {
     Bool(bool),
     Nothing,
     Empty,
+    Null,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -313,7 +314,19 @@ pub enum Stmt {
     },
     SubCall {
         fn_name: FullIdent,
+        /// Empty arguments are allowed, eg 'MySub 1,,2'
         args: Vec<Option<Expr>>,
+    },
+    /// Call statement
+    /// You are not required to use the Call keyword when calling a procedure. However,
+    /// if you use the Call keyword to call a procedure that requires arguments, argumentlist
+    /// must be enclosed in parentheses. If you omit the Call keyword, you also must omit
+    /// the parentheses around argumentlist. If you use either Call syntax to call any intrinsic
+    /// or user-defined function, the function's return value is discarded.
+    Call {
+        name: String,
+        /// TODO are empty arguments allowed?
+        args: Vec<Expr>,
     },
     With {
         object: FullIdent,
@@ -460,6 +473,7 @@ impl fmt::Display for Lit {
             }
             Lit::Nothing => write!(f, "Nothing"),
             Lit::Empty => write!(f, "Empty"),
+            Lit::Null => write!(f, "Null"),
         }
     }
 }
