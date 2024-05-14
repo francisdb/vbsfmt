@@ -513,4 +513,53 @@ mod test {
             ]
         );
     }
+
+    #[test]
+    fn test_line_continuations_crlf() {
+        let input = "x = txt & _\r\ntxt2";
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer
+            .tokenize()
+            .iter()
+            .map(|t| t.kind)
+            .filter(|t| t != &T![ws])
+            .collect();
+        assert_eq!(
+            tokens,
+            [
+                T![ident],
+                T![=],
+                T![ident],
+                T![&],
+                T![line_continuation],
+                T![ident],
+                T![EOF],
+            ]
+        );
+    }
+
+    #[test]
+    fn test_line_continuations() {
+        let input = " _ \t \r\n";
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.tokenize().iter().map(|t| t.kind).collect();
+        assert_eq!(tokens, [T![line_continuation], T![EOF],]);
+        let input = " _  \n";
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.tokenize().iter().map(|t| t.kind).collect();
+        assert_eq!(tokens, [T![line_continuation], T![EOF],]);
+        let input = " _\r";
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.tokenize().iter().map(|t| t.kind).collect();
+        assert_eq!(tokens, [T![line_continuation], T![EOF],]);
+    }
+
+    #[test]
+    fn test_newlines() {
+        // CRLF should get processed as a single newline
+        let input = "\r\n\n\r";
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.tokenize().iter().map(|t| t.kind).collect();
+        assert_eq!(tokens, [T![nl], T![nl], T![nl], T![EOF],]);
+    }
 }

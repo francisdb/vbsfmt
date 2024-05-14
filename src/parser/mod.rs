@@ -126,6 +126,10 @@ impl<'input> Iterator for TokenIter<'input> {
             if matches!(current_token.kind, T![ws]) {
                 continue;
             }
+            if matches!(current_token.kind, T![line_continuation]) {
+                // the lexer already consumes the newline
+                continue;
+            }
             // skip empty lines
             if matches!(self.prev_token_kind, T![nl]) && matches!(current_token.kind, T![nl]) {
                 self.prev_token_kind = current_token.kind;
@@ -160,6 +164,24 @@ mod test {
     fn parse(input: &str) -> Expr {
         let mut parser = Parser::new(input);
         parser.expression()
+    }
+
+    #[test]
+    fn test_line_continuations() {
+        // mind the trailing spaces
+        let input = indoc! {r#"
+            Dim x _
+             _
+                , y
+        "#};
+        let mut parser = Parser::new(input);
+        let file = parser.file();
+        assert_eq!(
+            file,
+            vec![Item::Statement(Stmt::Dim {
+                vars: vec![("x".to_string(), vec![]), ("y".to_string(), vec![]),],
+            }),]
+        );
     }
 
     #[test]

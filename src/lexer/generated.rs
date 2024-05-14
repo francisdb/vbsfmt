@@ -241,9 +241,12 @@ pub(super) enum LogosToken {
     // Misc
     #[regex(r"[ \t\f]+")]
     WS,
-    #[regex(r"\r\n|\n|\r", newline_callback)]
+    #[regex(r"(\r\n?|\n)", newline_callback)]
     NewLine((usize, usize)),
-    #[regex(r" _[\r\n|\n|\r]", word_callback)]
+    // TODO to be 100% correct we should also capture a line
+    //   with only _ (and trailing whitespace + newline) as a line continuation
+    // (\r\n?|\n) matches \r\n, \r, and \n
+    #[regex(r"[ \t\f]+_[ \t\f]*(\r\n?|\n)", word_callback)]
     LineContinuation((usize, usize)),
 
     // comments using ' or REM
