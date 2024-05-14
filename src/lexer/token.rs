@@ -121,6 +121,8 @@ pub enum TokenKind {
     KeywordProperty,
     KeywordPublic,
     KeywordPrivate,
+    KeywordPreserve,
+    KeywordDefault,
     KeywordGet,
     KeywordLet,
     KeywordAs,
@@ -336,6 +338,12 @@ macro_rules! T {
     [private] => {
         $crate::lexer::TokenKind::KeywordPrivate
     };
+    [preserve] => {
+        $crate::lexer::TokenKind::KeywordPreserve
+    };
+    [default] => {
+        $crate::lexer::TokenKind::KeywordDefault
+    };
     [as] => {
         $crate::lexer::TokenKind::KeywordAs
     };
@@ -521,7 +529,7 @@ impl fmt::Display for TokenKind {
                 T![mod] => "mod",
                 T![me] => "me",
                 T![option] => "option",
-                T![comment] => "// comment",
+                T![comment] => "' comment",
                 // literals
                 T![integer_literal] => "integer_literal",
                 T![hex_integer_literal] => "hex_integer_literal",
@@ -544,6 +552,8 @@ impl fmt::Display for TokenKind {
                 T![property] => "property",
                 T![public] => "public",
                 T![private] => "private",
+                T![preserve] => "preserve",
+                T![default] => "default",
                 T![call] => "call",
                 T![as] => "as",
                 T![new] => "new",
@@ -614,6 +624,6 @@ mod tests {
         assert_eq!(T![<=].to_string(), "<=");
         assert_eq!(T![dim].to_string(), "dim");
         assert_eq!(T![parse_error].to_string(), "<?>");
-        assert_eq!(T![comment].to_string(), "// comment");
+        assert_eq!(T![comment].to_string(), "' comment");
     }
 }

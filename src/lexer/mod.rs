@@ -258,6 +258,44 @@ mod test {
     }
 
     #[test]
+    fn test_lexer_rem_comment() {
+        let input = "REM comment here\n";
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer
+            .tokenize()
+            .into_iter()
+            .filter(|t| t.kind != T![ws])
+            .collect();
+        let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
+        assert_eq!(token_kinds, [T![comment], T![nl], T![EOF],]);
+    }
+
+    #[test]
+    fn test_lexer_not_rem() {
+        // this used to lexed as a comment
+        let input = "Private Sub RemoveBall(aBall)";
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer
+            .tokenize()
+            .into_iter()
+            .filter(|t| t.kind != T![ws])
+            .collect();
+        let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
+        assert_eq!(
+            token_kinds,
+            [
+                T![private],
+                T![sub],
+                T![ident],
+                T!['('],
+                T![ident],
+                T![')'],
+                T![EOF],
+            ]
+        );
+    }
+
+    #[test]
     fn test_lexer_string_with_escaped_quotes() {
         let input = r#"
         str = "hello ""world"""

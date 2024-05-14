@@ -1,5 +1,8 @@
 use crate::lexer::{Token, TokenKind};
-use crate::parser::ast::{Argument, ErrorClause, Expr, FullIdent, IdentPart, SetRhs, Stmt};
+use crate::parser::ast::{
+    Argument, ArgumentType, ErrorClause, Expr, FullIdent, IdentPart, MemberAccess,
+    MemberDefinitions, PropertyType, PropertyVisibility, SetRhs, Stmt, VarRef, Visibility,
+};
 use crate::parser::{ast, Parser};
 use crate::T;
 
@@ -48,7 +51,7 @@ where
                 );
                 let name = self.text(&ident).to_string();
 
-                let parameters = self.declaration_parameter_list("Function");
+                let parameters = self.optional_declaration_parameter_list("Function");
 
                 self.consume(T![nl]);
                 // do we need to do something special with the returned value?
@@ -77,15 +80,7 @@ where
                     ident.kind
                 );
                 let name = self.text(&ident).to_string();
-
-                let parameters = if self.at(T!['(']) {
-                    // sub with parameters
-                    self.declaration_parameter_list("Sub")
-                } else {
-                    // sub without parameters
-                    Vec::new()
-                };
-
+                let parameters = self.optional_declaration_parameter_list("Sub");
                 self.consume_line_delimiter();
                 let body = self.block(&[T![end]]);
 
@@ -99,6 +94,177 @@ where
                     body,
                 }
             }
+            T![class] => {
+                self.consume(T![class]);
+                let ident = self.consume(T![ident]);
+                let name = self.text(&ident).to_string();
+                self.consume_line_delimiter();
+                let mut members = Vec::new();
+                let mut member_accessors = Vec::new();
+                let mut methods = Vec::new();
+                let mut dims = Vec::new();
+                while !self.at(T![end]) {
+                    let mut default = None;
+                    let visibility = if self.at(T![public]) {
+                        self.consume(T![public]);
+                        if self.at(T![default]) {
+                            self.consume(T![default]);
+                            default = Some(true);
+                        }
+                        Some(Visibility::Public)
+                    } else if self.at(T![private]) {
+                        self.consume(T![private]);
+                        Some(Visibility::Private)
+                    } else {
+                        None
+                    };
+
+                    match self.peek() {
+                        T![property] => {
+                            let property_visibility = match visibility {
+                                Some(Visibility::Public) => PropertyVisibility::Public {
+                                    default: default.unwrap_or(false),
+                                },
+                                Some(Visibility::Private) => PropertyVisibility::Private,
+                                None => PropertyVisibility::Public {
+                                    default: default.unwrap_or(false),
+                                },
+                            };
+
+                            self.consume(T![property]);
+                            // let (Variant), get or set (Object)
+                            let property_type = match self.peek() {
+                                T![let] => {
+                                    self.consume(T![let]);
+                                    PropertyType::Let
+                                }
+                                T![set] => {
+                                    self.consume(T![set]);
+                                    PropertyType::Set
+                                }
+                                T![get] => {
+                                    self.consume(T![get]);
+                                    PropertyType::Get
+                                }
+                                other => {
+                                    let peek = self.peek_full();
+                                    panic!(
+                                        "Expected `let`, `set` or `get` in class property definition at line {}, column {}, got `{}`",
+                                        peek.line, peek.column, other
+                                    );
+                                }
+                            };
+
+                            let ident = self.consume(T![ident]);
+                            let name = self.text(&ident).to_string();
+                            let property_arguments =
+                                self.optional_parenthesized_property_arguments();
+
+                            let property_body = self.block(&[T![end]]);
+                            self.consume(T![end]);
+                            self.consume(T![property]);
+                            self.consume_line_delimiter();
+                            member_accessors.push(MemberAccess {
+                                visibility: property_visibility,
+                                name,
+                                property_type,
+                                args: property_arguments,
+                                body: property_body,
+                            });
+                        }
+                        T![function] => {
+                            self.consume(T![function]);
+                            let ident = self.consume(T![ident]);
+                            let method_name = self.text(&ident).to_string();
+                            let parameters = self.optional_declaration_parameter_list("Function");
+                            self.consume_line_delimiter();
+                            let body = self.block(&[T![end]]);
+                            self.consume(T![end]);
+                            self.consume(T![function]);
+                            self.consume_if_not_eof(T![nl]);
+                            let item = ast::Item::Function {
+                                name: method_name.clone(),
+                                parameters,
+                                body,
+                            };
+                            let function_visibility = visibility.unwrap_or(Visibility::Public);
+                            methods.push((function_visibility, item));
+                        }
+                        T![sub] => {
+                            self.consume(T![sub]);
+                            let ident = self.consume(T![ident]);
+                            let method_name = self.text(&ident).to_string();
+                            let parameters = self.optional_declaration_parameter_list("Sub");
+                            self.consume_line_delimiter();
+                            let body = self.block(&[T![end]]);
+                            self.consume(T![end]);
+                            self.consume(T![sub]);
+                            self.consume_if_not_eof(T![nl]);
+                            let item = ast::Item::Sub {
+                                name: method_name.clone(),
+                                parameters,
+                                body,
+                            };
+                            let sub_visibility = visibility.unwrap_or(Visibility::Public);
+                            methods.push((sub_visibility, item));
+                        }
+                        T![dim] => {
+                            self.consume(T![dim]);
+                            let mut vars = Vec::new();
+                            while !self.at(T![nl]) && !self.at(T![EOF]) {
+                                let ident = self.consume(T![ident]);
+                                let name = self.text(&ident).to_string();
+                                let bounds = self.const_bounds();
+                                vars.push((name, bounds));
+                                if self.at(T![,]) {
+                                    self.consume(T![,]);
+                                } else {
+                                    break;
+                                }
+                            }
+                            self.consume_line_delimiter();
+                            dims.push(vars);
+                        }
+                        _ => {
+                            // properties
+                            let visibility = visibility.unwrap_or_else(|| {
+                                let peek = self.peek_full();
+                                panic!(
+                                    "Expected visibility for class member at line {}, column {} but found '{}'",
+                                    peek.line, peek.column, peek.kind
+                                )
+                            });
+                            // like a dim we can have multiple properties in one line of which some can be arrays
+                            let mut properties = Vec::new();
+                            while {
+                                let ident = self.consume(T![ident]);
+                                let name = self.text(&ident).to_string();
+                                let bounds = self.const_bounds();
+                                properties.push((name, bounds));
+                                self.at(T![,])
+                            } {
+                                self.consume(T![,]);
+                            }
+                            let member_definitions = MemberDefinitions {
+                                visibility,
+                                properties,
+                            };
+                            members.push(member_definitions);
+                            self.consume_line_delimiter();
+                        }
+                    }
+                }
+                self.consume(T![end]);
+                self.consume(T![class]);
+                self.consume_if_not_eof(T![nl]);
+                ast::Item::Class {
+                    name,
+                    members,
+                    dims,
+                    member_accessors,
+                    methods,
+                }
+            }
             _ => {
                 // this must be a statement
                 let stmt = self.statement(true);
@@ -107,41 +273,66 @@ where
         }
     }
 
-    /// Parse a list of parameters for a function or sub declaration.
-    fn declaration_parameter_list(&mut self, item_type: &str) -> Vec<Argument> {
-        let mut parameters: Vec<Argument> = Vec::new();
-        self.consume(T!['(']);
-        while !self.at(T![')']) {
-            // optional modifier
-            let modifier = if self.at(T![byval]) {
-                self.consume(T![byval]);
-                Argument::ByVal
-            } else if self.at(T![byref]) {
-                self.consume(T![byref]);
-                Argument::ByRef
-            } else {
-                Argument::ByVal
-            };
-            let parameter_ident = self.next().unwrap_or_else(|| {
-                panic!(
-                    "Tried to parse {} parameter, but there were no more tokens",
-                    item_type
-                )
-            });
-            assert_eq!(
-                parameter_ident.kind,
-                T![ident],
-                "Expected identifier as {} parameter, but found `{}`",
-                item_type,
-                parameter_ident.kind
-            );
-            let parameter_name = self.text(&parameter_ident).to_string();
-            parameters.push(modifier(parameter_name));
-            if self.at(T![,]) {
-                self.consume(T![,]);
+    fn const_bounds(&mut self) -> Vec<usize> {
+        let mut bounds = Vec::new();
+        if self.at(T!['(']) {
+            self.consume(T!['(']);
+            while !self.at(T![')']) {
+                let dim = self.consume(T![integer_literal]);
+                let dim: usize = match self.text(&dim).parse() {
+                    Ok(dim) => dim,
+                    Err(_) => panic!(
+                        "Expected integer literal as bound at line {}, row {}",
+                        dim.line, dim.column
+                    ),
+                };
+                bounds.push(dim);
+                if self.at(T![,]) {
+                    self.consume(T![,]);
+                }
             }
+            self.consume(T![')']);
         }
-        self.consume(T![')']);
+        bounds
+    }
+
+    /// Parse a list of parameters for a function or sub declaration.
+    fn optional_declaration_parameter_list(&mut self, item_type: &str) -> Vec<Argument> {
+        let mut parameters: Vec<Argument> = Vec::new();
+        if self.at(T!['(']) {
+            self.consume(T!['(']);
+            while !self.at(T![')']) {
+                // optional modifier
+                let modifier = if self.at(T![byval]) {
+                    self.consume(T![byval]);
+                    Argument::ByVal
+                } else if self.at(T![byref]) {
+                    self.consume(T![byref]);
+                    Argument::ByRef
+                } else {
+                    Argument::ByVal
+                };
+                let parameter_ident = self.next().unwrap_or_else(|| {
+                    panic!(
+                        "Tried to parse {} parameter, but there were no more tokens",
+                        item_type
+                    )
+                });
+                assert_eq!(
+                    parameter_ident.kind,
+                    T![ident],
+                    "Expected identifier as {} parameter, but found `{}`",
+                    item_type,
+                    parameter_ident.kind
+                );
+                let parameter_name = self.text(&parameter_ident).to_string();
+                parameters.push(modifier(parameter_name));
+                if self.at(T![,]) {
+                    self.consume(T![,]);
+                }
+            }
+            self.consume(T![')']);
+        }
         parameters
     }
 
@@ -149,7 +340,7 @@ where
     pub fn block(&mut self, end_tokens: &[TokenKind]) -> Vec<Stmt> {
         let mut stmts = Vec::new();
         while !end_tokens.contains(&self.peek()) {
-            if !self.at(T![nl]) || self.at(T![:]) {
+            if !self.at(T![nl]) && !self.at(T![:]) {
                 let stmt = self.statement(false);
                 stmts.push(stmt);
             }
@@ -182,30 +373,33 @@ where
                 self.consume(T![dim]);
                 let mut vars = Vec::new();
                 while !self.at(T![nl]) && !self.at(T![EOF]) {
-                    let ident = self.next().expect("Expected identifier after `dim`");
-                    assert_eq!(
-                        ident.kind,
-                        T![ident],
-                        "Expected identifier after `dim`, but found `{}`",
-                        ident.kind
-                    );
+                    let ident = self.consume(T![ident]);
                     let name = self.text(&ident).to_string();
-
-                    let dimensions = self.parenthesized_arguments();
-
-                    vars.push((name, dimensions));
-
+                    let bounds = self.parenthesized_arguments();
+                    vars.push((name, bounds));
                     if self.at(T![,]) {
                         self.consume(T![,]);
                     } else {
                         break;
                     }
                 }
-
                 Stmt::Dim { vars }
             }
             T![redim] => {
-                unimplemented!("ReDim not implemented yet")
+                self.consume(T![redim]);
+                let mut preserve = false;
+                if self.at(T![preserve]) {
+                    self.consume(T![preserve]);
+                    preserve = true;
+                }
+                let ident = self.consume(T![ident]);
+                let var_name = self.text(&ident).to_string();
+                let bounds = self.parenthesized_arguments();
+                Stmt::ReDim {
+                    var_name,
+                    preserve,
+                    bounds,
+                }
             }
             T![const] => {
                 // TODO add support for multiple variables in one const statement
@@ -221,30 +415,31 @@ where
             }
             T![set] => {
                 self.consume(T![set]);
-                let ident = self.next().expect("Expected identifier after `let`");
-                assert_eq!(
-                    ident.kind,
-                    T![ident],
-                    "Expected identifier after `let`, but found `{}`",
-                    ident.kind
-                );
+                let ident = self.consume(T![ident]);
                 let name = self.text(&ident).to_string();
+                let array_indices = self.parenthesized_arguments();
+                let var = VarRef {
+                    name,
+                    array_indices,
+                };
                 self.consume(T![=]);
-                if self.at(T![new]) {
-                    self.consume(T![new]);
-                    let ident = self.consume(T![ident]);
-                    let class_name = self.text(&ident).to_string();
-                    Stmt::Set {
-                        var_name: name,
-                        rhs: SetRhs::NewClass(class_name),
+                let rhs = match self.peek() {
+                    T![nothing] => {
+                        self.consume(T![nothing]);
+                        SetRhs::Nothing
                     }
-                } else {
-                    let expr = self.expression();
-                    Stmt::Set {
-                        var_name: name,
-                        rhs: SetRhs::Expr(Box::new(expr)),
+                    T![new] => {
+                        self.consume(T![new]);
+                        let ident = self.consume(T![ident]);
+                        let class_name = self.text(&ident).to_string();
+                        SetRhs::NewClass(class_name)
                     }
-                }
+                    _ => {
+                        let expr = self.expression();
+                        SetRhs::Expr(Box::new(expr))
+                    }
+                };
+                Stmt::Set { var, rhs }
             }
             T![ident] | T![me] => {
                 let ident = self.ident_deep();
@@ -566,6 +761,33 @@ where
             self.consume(T![')']);
         };
         arguments
+    }
+
+    fn optional_parenthesized_property_arguments(&mut self) -> Vec<(String, ArgumentType)> {
+        let mut property_arguments = Vec::new();
+        if self.at(T!['(']) {
+            self.consume(T!['(']);
+            while !self.at(T![')']) {
+                // modifiers for the property
+                let argument_type = if self.at(T![byval]) {
+                    self.consume(T![byval]);
+                    ArgumentType::ByVal
+                } else if self.at(T![byref]) {
+                    self.consume(T![byref]);
+                    ArgumentType::ByRef
+                } else {
+                    ArgumentType::ByVal
+                };
+                let ident = self.consume(T![ident]);
+                let arg_name = self.text(&ident).to_string();
+                property_arguments.push((arg_name, argument_type));
+                if self.at(T![,]) {
+                    self.consume(T![,]);
+                }
+            }
+            self.consume(T![')']);
+        }
+        property_arguments
     }
 
     pub(crate) fn ident_part(&mut self) -> IdentPart {

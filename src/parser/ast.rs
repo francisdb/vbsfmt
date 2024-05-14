@@ -168,8 +168,13 @@ impl Display for FullIdent {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expr {
     Literal(Lit),
-    /// An identifier, sub or function call
+    /// An identifier, identifier with array access, sub or function call
     /// This grammar is ambiguous, so will need to be resolved at runtime
+    /// TODO we can probably make a different type for
+    ///   * Ident without array access or SubCall without args
+    ///   * Ident with array access or FnCall with args or
+    ///   * FnCall without args
+    ///   * SubCall with args
     IdentFnSubCall(FullIdent),
     // FnCall {
     //     fn_name: FullIdent,
@@ -220,11 +225,31 @@ pub enum ErrorClause {
 pub enum SetRhs {
     Expr(Box<Expr>),
     NewClass(String),
+    Nothing,
 }
 
 impl SetRhs {
+    pub fn ident(name: impl Into<String>) -> Self {
+        SetRhs::Expr(Box::new(Expr::ident(name)))
+    }
+
     pub fn new_class(class_name: impl Into<String>) -> Self {
         SetRhs::NewClass(class_name.into())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct VarRef {
+    pub name: String,
+    pub array_indices: Vec<Expr>,
+}
+
+impl VarRef {
+    pub fn ident(name: impl Into<String>) -> Self {
+        VarRef {
+            name: name.into(),
+            array_indices: Vec::new(),
+        }
     }
 }
 
@@ -235,15 +260,15 @@ pub enum Stmt {
     },
     ReDim {
         var_name: String,
-        // TODO handle array subscripts
-        // TODO handle multiple variables
+        preserve: bool,
+        bounds: Vec<Expr>,
     },
     Const {
         var_name: String,
         value: Box<Expr>,
     },
     Set {
-        var_name: String,
+        var: VarRef,
         rhs: SetRhs,
     },
     Assignment {
@@ -300,6 +325,46 @@ pub enum Argument {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum PropertyVisibility {
+    Public { default: bool },
+    Private,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum PropertyType {
+    Let,
+    Set,
+    Get,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ArgumentType {
+    ByVal,
+    ByRef,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MemberAccess {
+    pub visibility: PropertyVisibility,
+    pub name: String,
+    pub property_type: PropertyType,
+    pub args: Vec<(String, ArgumentType)>,
+    pub body: Vec<Stmt>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Visibility {
+    Public,
+    Private,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MemberDefinitions {
+    pub visibility: Visibility,
+    pub properties: Vec<(String, Vec<usize>)>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Item {
     // https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/scripting-articles/bw9t3484%28v%3Dvs.84%29
     OptionExplicit,
@@ -316,8 +381,10 @@ pub enum Item {
     },
     Class {
         name: String,
-        properties: Vec<(String, Type)>,
-        methods: Vec<Item>,
+        members: Vec<MemberDefinitions>,
+        dims: Vec<Vec<(String, Vec<usize>)>>,
+        member_accessors: Vec<MemberAccess>,
+        methods: Vec<(Visibility, Item)>, // expect only functions and subs
     },
     Statement(Stmt),
 }

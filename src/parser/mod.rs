@@ -150,7 +150,10 @@ mod test {
     use super::*;
     use crate::parser::ast::ErrorClause::{Goto0, ResumeNext};
     use crate::parser::ast::Stmt::OnError;
-    use crate::parser::ast::{Argument, Expr, FullIdent, IdentPart, Item, Lit, SetRhs, Stmt};
+    use crate::parser::ast::{
+        Argument, ArgumentType, Expr, FullIdent, IdentPart, Item, Lit, MemberAccess,
+        MemberDefinitions, PropertyType, PropertyVisibility, SetRhs, Stmt, VarRef, Visibility,
+    };
     use indoc::indoc;
     use pretty_assertions::assert_eq;
 
@@ -1074,6 +1077,95 @@ Const a = 1			' some info
     }
 
     #[test]
+    fn test_set() {
+        let input = indoc! {r#"
+            Set foo = bar
+            Set Obj(x) = NullFader
+        "#};
+        let mut parser = Parser::new(input);
+        let file = parser.file();
+        assert_eq!(
+            file,
+            vec![
+                Item::Statement(Stmt::Set {
+                    var: VarRef::ident("foo"),
+                    rhs: SetRhs::ident("bar"),
+                }),
+                Item::Statement(Stmt::Set {
+                    var: VarRef {
+                        name: "Obj".to_string(),
+                        array_indices: vec![Expr::ident("x")]
+                    },
+                    rhs: SetRhs::ident("NullFader"),
+                }),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_set_using_new() {
+        let input = "Set foo = New Bar";
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::Set {
+                var: VarRef::ident("foo"),
+                rhs: SetRhs::new_class("Bar"),
+            })]
+        );
+    }
+
+    #[test]
+    fn test_set_using_nothing() {
+        let input = "Set foo = Nothing";
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::Set {
+                var: VarRef::ident("foo"),
+                rhs: SetRhs::Nothing,
+            })]
+        );
+    }
+
+    #[test]
+    fn test_redim() {
+        let input = "Redim Preserve tmp(uBound(aArray) + uBound(aInput)+1)";
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::ReDim {
+                var_name: "tmp".to_string(),
+                preserve: true,
+                bounds: vec![Expr::InfixOp {
+                    op: T![+],
+                    lhs: Box::new(Expr::InfixOp {
+                        op: T![+],
+                        lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
+                            base: IdentPart {
+                                name: "uBound".to_string(),
+                                array_indices: vec![Expr::ident("aArray".to_string())],
+                            },
+                            property_accesses: vec![],
+                        })),
+                        rhs: Box::new(Expr::IdentFnSubCall(FullIdent {
+                            base: IdentPart {
+                                name: "uBound".to_string(),
+                                array_indices: vec![Expr::ident("aInput".to_string())],
+                            },
+                            property_accesses: vec![],
+                        })),
+                    }),
+                    rhs: Box::new(Expr::Literal(Lit::Int(1))),
+                },],
+            })]
+        );
+    }
+
+    #[test]
     fn parse_block_with_colons() {
         let input = indoc! {r#"
             Dim test
@@ -1176,20 +1268,6 @@ Const a = 1			' some info
                     })),
                     rhs: Box::new(Expr::Literal(Lit::Float(120.5))),
                 }),
-            })]
-        );
-    }
-
-    #[test]
-    fn test_object_assignment_using_new() {
-        let input = "Set foo = New Bar";
-        let mut parser = Parser::new(input);
-        let items = parser.file();
-        assert_eq!(
-            items,
-            vec![Item::Statement(Stmt::Set {
-                var_name: "foo".to_string(),
-                rhs: SetRhs::new_class("Bar"),
             })]
         );
     }
@@ -1313,6 +1391,140 @@ Const a = 1			' some info
                     Some(Expr::Literal(Lit::Str("test".to_string()))),
                 ],
             }
+        );
+    }
+
+    #[test]
+    fn inline_class() {
+        let input = indoc! {r#"
+            Class NullFadingObject : Public Property Let IntensityScale(input) : : End Property : End Class
+        "#};
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Class {
+                name: "NullFadingObject".to_string(),
+                members: vec![],
+                dims: vec![],
+                member_accessors: vec![MemberAccess {
+                    name: "IntensityScale".to_string(),
+                    visibility: PropertyVisibility::Public { default: false },
+                    property_type: PropertyType::Let,
+                    args: vec![("input".to_string(), ArgumentType::ByVal),],
+                    body: vec![],
+                }],
+                methods: vec![],
+            }]
+        );
+    }
+
+    #[test]
+    fn class_with_only_members() {
+        let input = indoc! {r#"
+            Class MyClass
+                Public Foo, Bar(9,0) 
+                Private Qux(1), Baz
+            End Class
+        "#};
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Class {
+                name: "MyClass".to_string(),
+                members: vec![
+                    MemberDefinitions {
+                        visibility: Visibility::Public,
+                        properties: vec![
+                            ("Foo".to_string(), vec![]),
+                            ("Bar".to_string(), vec![9, 0]),
+                        ],
+                    },
+                    MemberDefinitions {
+                        visibility: Visibility::Private,
+                        properties: vec![("Qux".to_string(), vec![1]), ("Baz".to_string(), vec![]),],
+                    },
+                ],
+                dims: vec![],
+                member_accessors: vec![],
+                methods: vec![],
+            }]
+        );
+    }
+
+    #[test]
+    fn class_with_only_dims() {
+        let input = indoc! {r#"
+            Class MyClass
+                Dim Foo, Bar(9,0) 
+                Dim Qux(1), Baz
+            End Class
+        "#};
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Class {
+                name: "MyClass".to_string(),
+                members: vec![],
+                dims: vec![
+                    vec![("Foo".to_string(), vec![]), ("Bar".to_string(), vec![9, 0]),],
+                    vec![("Qux".to_string(), vec![1]), ("Baz".to_string(), vec![]),]
+                ],
+                member_accessors: vec![],
+                methods: vec![],
+            }]
+        );
+    }
+
+    #[test]
+    fn class_with_subs_mixed() {
+        let input = indoc! {r#"
+            Class MyClass
+                Public Enabled
+                Public Sub Class_Initialize
+                    Enabled = True
+                End Sub
+                Private Sub Class_Terminate()
+                    'Termination code goes here
+                End Sub
+            End Class
+        "#};
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Class {
+                name: "MyClass".to_string(),
+                members: vec![MemberDefinitions {
+                    visibility: Visibility::Public,
+                    properties: vec![("Enabled".to_string(), vec![])],
+                },],
+                dims: vec![],
+                member_accessors: vec![],
+                methods: vec![
+                    (
+                        Visibility::Public,
+                        Item::Sub {
+                            name: "Class_Initialize".to_string(),
+                            parameters: vec![],
+                            body: vec![Stmt::Assignment {
+                                full_ident: FullIdent::ident("Enabled"),
+                                value: Box::new(Expr::Literal(Lit::Bool(true))),
+                            }],
+                        }
+                    ),
+                    (
+                        Visibility::Private,
+                        Item::Sub {
+                            name: "Class_Terminate".to_string(),
+                            parameters: vec![],
+                            body: vec![],
+                        }
+                    ),
+                ],
+            },]
         );
     }
 }
