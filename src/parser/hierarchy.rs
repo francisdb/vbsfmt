@@ -349,13 +349,13 @@ where
 
         let parameters = self.optional_declaration_parameter_list("Function");
 
-        self.consume(T![nl]);
+        self.consume_line_delimiter();
         // do we need to do something special with the returned value?
         let body = self.block(true, &[T![end]]);
 
         self.consume(T![end]);
         self.consume(T![function]);
-        self.consume(T![nl]);
+        self.consume_line_delimiter();
 
         Item::Function {
             visibility,

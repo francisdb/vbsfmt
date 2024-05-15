@@ -2083,6 +2083,22 @@ Const a = 1			' some info
     }
 
     #[test]
+    fn test_parse_function_single_line_with_colons() {
+        let input = "Function NullFunction(a) : End Function";
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Function {
+                visibility: Visibility::Public,
+                name: "NullFunction".to_string(),
+                parameters: vec![Argument::ByVal("a".to_string())],
+                body: vec![],
+            }]
+        );
+    }
+
+    #[test]
     fn test_parse_do_while_loop() {
         let input = indoc! {r#"
             Do While x > 0
