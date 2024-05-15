@@ -1062,12 +1062,20 @@ Const a = 1			' some info
         let input = "Const x = 42";
         let mut parser = Parser::new(input);
         let stmt = parser.statement(true);
+        assert_eq!(stmt, Stmt::const_("x", Lit::int(42)));
+    }
+
+    #[test]
+    fn parse_const_multi() {
+        let input = r#"const x = 42, txt = "Hello""#;
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
         assert_eq!(
             stmt,
-            Stmt::Const {
-                var_name: "x".to_string(),
-                value: Box::new(Expr::int(42)),
-            }
+            Stmt::Const(vec![
+                ("x".to_string(), Lit::int(42)),
+                ("txt".to_string(), Lit::str("Hello".to_string())),
+            ])
         );
     }
 
@@ -1082,14 +1090,8 @@ Const a = 1			' some info
         assert_eq!(
             all,
             vec![
-                Item::Statement(Stmt::Const {
-                    var_name: "x".to_string(),
-                    value: Box::new(Expr::int(42)),
-                }),
-                Item::Statement(Stmt::Const {
-                    var_name: "y".to_string(),
-                    value: Box::new(Expr::int(13)),
-                }),
+                Item::Statement(Stmt::const_("x", Lit::int(42))),
+                Item::Statement(Stmt::const_("y", Lit::int(13))),
             ]
         );
     }
@@ -1105,14 +1107,8 @@ Const a = 1			' some info
         assert_eq!(
             all,
             vec![
-                Item::Statement(Stmt::Const {
-                    var_name: "Test".to_string(),
-                    value: Box::new(Expr::Literal(Lit::Bool(false))),
-                }),
-                Item::Statement(Stmt::Const {
-                    var_name: "Test2".to_string(),
-                    value: Box::new(Expr::Literal(Lit::Bool(true))),
-                }),
+                Item::Statement(Stmt::const_("Test", Lit::Bool(false))),
+                Item::Statement(Stmt::const_("Test2", Lit::Bool(true))),
             ]
         );
     }

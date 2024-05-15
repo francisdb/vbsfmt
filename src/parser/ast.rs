@@ -273,10 +273,7 @@ pub enum Stmt {
         preserve: bool,
         bounds: Vec<Expr>,
     },
-    Const {
-        var_name: String,
-        value: Box<Expr>,
-    },
+    Const(Vec<(String, Lit)>),
     Set {
         var: VarRef,
         rhs: SetRhs,
@@ -424,6 +421,10 @@ impl Stmt {
             vars: vec![(var_name.into(), Vec::new())],
         }
     }
+
+    pub fn const_(var_name: impl Into<String>, value: Lit) -> Self {
+        Stmt::Const(vec![(var_name.into(), value)])
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -484,5 +485,9 @@ impl fmt::Display for Lit {
 impl Lit {
     pub fn str(s: impl Into<String>) -> Self {
         Lit::Str(s.into())
+    }
+
+    pub fn int(i: usize) -> Self {
+        Lit::Int(i)
     }
 }

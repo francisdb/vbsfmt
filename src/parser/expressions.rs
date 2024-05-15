@@ -90,7 +90,7 @@ where
         lhs
     }
 
-    fn parse_expression_lhs(&mut self) -> Expr {
+    pub fn parse_literal(&mut self) -> Option<Lit> {
         match self.peek() {
             lit @ T![integer_literal]
             | lit @ T![hex_integer_literal]
@@ -111,7 +111,7 @@ where
                 };
                 // We are using parse here which is for parsing rust literals, we might have to
                 // implement our own parser for VBScript literals
-                let lit = match lit {
+                let literal = match lit {
                     T![integer_literal] => {
                         Lit::Int(literal_text.parse().unwrap_or_else(|_| {
                             panic!("invalid integer literal: `{literal_text}`")
@@ -141,8 +141,18 @@ where
                     T![null] => Lit::Null,
                     _ => unreachable!(),
                 };
-                ast::Expr::Literal(lit)
+                Some(literal)
             }
+            _ => None,
+        }
+    }
+
+    fn parse_expression_lhs(&mut self) -> Expr {
+        if let Some(literal) = self.parse_literal() {
+            return Expr::Literal(literal);
+        }
+
+        match self.peek() {
             T![ident] | T![me] | T![property_access] => {
                 let full_ident = self.ident_deep();
                 // if !self.at(T!['(']) {

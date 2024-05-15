@@ -620,16 +620,29 @@ where
     }
 
     fn statement_const(&mut self) -> Stmt {
-        // TODO add support for multiple variables in one const statement
         self.consume(T![const]);
-        let ident = self.consume(T![ident]);
-        let name = self.text(&ident).to_string();
-        self.consume(T![=]);
-        let value = self.expression();
-        Stmt::Const {
-            var_name: name,
-            value: Box::new(value),
+
+        // multiple constants can be defined in one line
+        let mut constants = Vec::new();
+        while !self.at(T![nl]) && !self.at(T![EOF]) {
+            let ident = self.consume(T![ident]);
+            let name = self.text(&ident).to_string();
+            self.consume(T![=]);
+            let literal = self.parse_literal().unwrap_or_else(|| {
+                let full = self.peek_full();
+                panic!(
+                    "Expected literal at line {}, column {} but found `{}`",
+                    full.line, full.column, full.kind
+                )
+            });
+            constants.push((name, literal));
+            if self.at(T![,]) {
+                self.consume(T![,]);
+            } else {
+                break;
+            }
         }
+        Stmt::Const(constants)
     }
 
     fn statement_with(&mut self) -> Stmt {
