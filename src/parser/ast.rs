@@ -280,6 +280,14 @@ pub enum DoLoopCheck {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct Case {
+    pub tests: Vec<Expr>,
+    pub body: Vec<Stmt>,
+}
+
+// Statements
+// https://learn.microsoft.com/en-us/previous-versions/7aw9cadb(v=vs.85)
+#[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
     Dim {
         vars: Vec<(String, Vec<Expr>)>,
@@ -325,9 +333,10 @@ pub enum Stmt {
         condition: DoLoopCondition,
         body: Vec<Stmt>,
     },
+    // https://learn.microsoft.com/en-us/previous-versions/6ef9w614(v=vs.85)
     SelectCase {
         test_expr: Box<Expr>,
-        cases: Vec<(Vec<Expr>, Vec<Stmt>)>,
+        cases: Vec<Case>,
         else_stmt: Option<Vec<Stmt>>,
     },
     SubCall {
@@ -405,7 +414,7 @@ pub enum Visibility {
 #[derive(Debug, Clone, PartialEq)]
 pub struct MemberDefinitions {
     pub visibility: Visibility,
-    pub properties: Vec<(String, Vec<usize>)>,
+    pub properties: Vec<(String, Option<Vec<usize>>)>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -431,7 +440,7 @@ pub enum Item {
     Class {
         name: String,
         members: Vec<MemberDefinitions>,
-        dims: Vec<Vec<(String, Vec<usize>)>>,
+        dims: Vec<Vec<(String, Option<Vec<usize>>)>>,
         member_accessors: Vec<MemberAccess>,
         methods: Vec<Item>, // expect only functions and subs
     },
@@ -440,6 +449,14 @@ pub enum Item {
     Const {
         visibility: Visibility,
         values: Vec<(String, Lit)>,
+    },
+    /// This is a script-level variable that has visibility
+    /// e.g. `Public a, b, c` or `Private a, b, c`
+    /// note: `Public a()` is a dynamic array and not the same as `Public a`
+    /// https://stackoverflow.com/a/23911728/42198
+    Variable {
+        visibility: Visibility,
+        vars: Vec<(String, Option<Vec<usize>>)>,
     },
     Statement(Stmt),
 }

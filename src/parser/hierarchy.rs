@@ -1,8 +1,8 @@
 use crate::lexer::{Token, TokenKind};
 use crate::parser::ast::{
-    Argument, ArgumentType, DoLoopCheck, DoLoopCondition, ErrorClause, Expr, FullIdent, IdentPart,
-    Item, MemberAccess, MemberDefinitions, PropertyType, PropertyVisibility, SetRhs, Stmt, VarRef,
-    Visibility,
+    Argument, ArgumentType, Case, DoLoopCheck, DoLoopCondition, ErrorClause, Expr, FullIdent,
+    IdentPart, Item, MemberAccess, MemberDefinitions, PropertyType, PropertyVisibility, SetRhs,
+    Stmt, VarRef, Visibility,
 };
 use crate::parser::{ast, Parser};
 use crate::T;
@@ -34,6 +34,7 @@ where
                     T![function] => self.item_function(visibility),
                     T![sub] => self.item_sub(visibility),
                     T![const] => self.item_const(visibility),
+                    T![ident] => self.item_variable(visibility),
                     _ => {
                         let peek = self.peek_full();
                         panic!(
@@ -72,6 +73,23 @@ where
         }
         self.consume_line_delimiter();
         Item::Const { visibility, values }
+    }
+
+    fn item_variable(&mut self, visibility: Visibility) -> Item {
+        let mut vars = Vec::new();
+        while !self.at(T![nl]) && !self.at(T![EOF]) {
+            let ident = self.consume(T![ident]);
+            let name = self.text(&ident).to_string();
+            let bounds = self.const_bounds();
+            vars.push((name, bounds));
+            if self.at(T![,]) {
+                self.consume(T![,]);
+            } else {
+                break;
+            }
+        }
+        self.consume_line_delimiter();
+        Item::Variable { visibility, vars }
     }
 
     fn item_class(&mut self) -> Item {
@@ -159,7 +177,7 @@ where
         member_definitions
     }
 
-    fn class_dim(&mut self) -> Vec<(String, Vec<usize>)> {
+    fn class_dim(&mut self) -> Vec<(String, Option<Vec<usize>>)> {
         self.consume(T![dim]);
         let mut vars = Vec::new();
         while !self.at(T![nl]) && !self.at(T![EOF]) {
@@ -347,10 +365,11 @@ where
         }
     }
 
-    fn const_bounds(&mut self) -> Vec<usize> {
-        let mut bounds = Vec::new();
+    fn const_bounds(&mut self) -> Option<Vec<usize>> {
+        let mut bounds = None;
         if self.at(T!['(']) {
             self.consume(T!['(']);
+            bounds = Some(vec![]);
             while !self.at(T![')']) {
                 let dim = self.consume(T![integer_literal]);
                 let dim: usize = match self.text(&dim).parse() {
@@ -360,7 +379,7 @@ where
                         dim.line, dim.column
                     ),
                 };
-                bounds.push(dim);
+                bounds.as_mut().unwrap().push(dim);
                 if self.at(T![,]) {
                     self.consume(T![,]);
                 }
@@ -752,7 +771,7 @@ where
         self.consume(T![case]);
         let expr = self.expression();
         self.consume(T![nl]);
-        let mut cases = Vec::new();
+        let mut cases: Vec<Case> = Vec::new();
         let mut else_stmt = None;
         while !self.at(T![end]) {
             if else_stmt.is_some() {
@@ -761,21 +780,22 @@ where
             self.consume(T![case]);
             if self.at(T![else]) {
                 self.consume(T![else]);
-                self.consume_line_delimiter();
+                self.consume_optional_line_delimiter();
                 let block = self.block(&[T![end], T![case]]);
                 else_stmt = Some(block);
             } else {
-                let mut case_values = Vec::new();
-                while !self.at(T![nl]) && !self.at(T![:]) {
-                    let value = self.expression();
-                    case_values.push(value);
-                    if self.at(T![,]) {
-                        self.consume(T![,]);
-                    }
+                let mut tests = Vec::new();
+                // comma separated list of expressions
+                let first_expr = self.expression();
+                tests.push(first_expr);
+                while self.at(T![,]) {
+                    self.consume(T![,]);
+                    let expr = self.expression();
+                    tests.push(expr);
                 }
-                self.consume_line_delimiter();
-                let block = self.block(&[T![end], T![case]]);
-                cases.push((case_values, block));
+                self.consume_optional_line_delimiter();
+                let body = self.block(&[T![end], T![case]]);
+                cases.push(Case { tests, body });
             }
         }
         self.consume(T![end]);

@@ -50,13 +50,18 @@ where
                 T![EOF] => break,
                 T![')'] | T![,] => break,
                 ending if ending.is_ending_expression() => break,
-                kind => {
-                    let token = *self.peek_full();
-                    let span = self.text(&token);
-                    panic!(
-                        "Unknown operator `{kind}` in expression at line {}, column {}: {span}",
-                        token.line, token.column
-                    )
+                _kind => {
+                    //let token = *self.peek_full();
+                    //let span = self.text(&token);
+                    // panic!(
+                    //     "Unknown operator `{kind}` in expression at line {}, column {}: {span}",
+                    //     token.line, token.column
+                    // )
+                    // println!(
+                    //     "Stopping expression parsing at line {}, column {} ({kind})",
+                    //     token.line, token.column
+                    // );
+                    break;
                 }
             };
 

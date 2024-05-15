@@ -100,6 +100,12 @@ where
         }
     }
 
+    fn consume_optional_line_delimiter(&mut self) {
+        if matches!(self.peek(), T![nl] | T![:]) {
+            self.consume_line_delimiter();
+        }
+    }
+
     pub(crate) fn at_new_line_or_eof(&mut self) -> bool {
         matches!(self.peek(), T![nl] | T![:] | T![EOF])
     }
@@ -159,8 +165,8 @@ mod test {
     use crate::parser::ast::ErrorClause::{Goto0, ResumeNext};
     use crate::parser::ast::Stmt::OnError;
     use crate::parser::ast::{
-        Argument, ArgumentType, DoLoopCheck, DoLoopCondition, Expr, FullIdent, IdentPart, Item,
-        Lit, MemberAccess, MemberDefinitions, PropertyType, PropertyVisibility, SetRhs, Stmt,
+        Argument, ArgumentType, Case, DoLoopCheck, DoLoopCondition, Expr, FullIdent, IdentPart,
+        Item, Lit, MemberAccess, MemberDefinitions, PropertyType, PropertyVisibility, SetRhs, Stmt,
         VarRef, Visibility,
     };
     use indoc::indoc;
@@ -1149,6 +1155,33 @@ Const a = 1			' some info
     }
 
     #[test]
+    fn parse_variables() {
+        let input = indoc! {r#"
+            Public x, y(1,2)
+            Private z, a(1), b()
+        "#};
+        let mut parser = Parser::new(input);
+        let all = parser.file();
+        assert_eq!(
+            all,
+            vec![
+                Item::Variable {
+                    visibility: Visibility::Public,
+                    vars: vec![("x".to_string(), None), ("y".to_string(), Some(vec![1, 2])),],
+                },
+                Item::Variable {
+                    visibility: Visibility::Private,
+                    vars: vec![
+                        ("z".to_string(), None),
+                        ("a".to_string(), Some(vec![1])),
+                        ("b".to_string(), Some(vec![])),
+                    ],
+                },
+            ]
+        );
+    }
+
+    #[test]
     #[should_panic = "Unexpected token: private at line 2, column 4"]
     fn parse_const_private_nested_fail() {
         let input = indoc! {r#"
@@ -1391,25 +1424,85 @@ Const a = 1			' some info
             vec![Item::Statement(Stmt::SelectCase {
                 test_expr: Box::new(Expr::ident("x")),
                 cases: vec![
-                    (
-                        vec![Expr::int(1), Expr::int(2),],
-                        vec![Stmt::Assignment {
+                    Case {
+                        tests: vec![Expr::int(1), Expr::int(2),],
+                        body: vec![Stmt::Assignment {
                             full_ident: FullIdent::ident("y"),
                             value: Box::new(Expr::int(2)),
                         }]
-                    ),
-                    (
-                        vec![Expr::int(3)],
-                        vec![Stmt::Assignment {
+                    },
+                    Case {
+                        tests: vec![Expr::int(3),],
+                        body: vec![Stmt::Assignment {
                             full_ident: FullIdent::ident("y"),
                             value: Box::new(Expr::int(3)),
                         }]
-                    ),
+                    },
                 ],
                 else_stmt: Some(vec![Stmt::Assignment {
                     full_ident: FullIdent::ident("y"),
                     value: Box::new(Expr::int(4)),
                 }]),
+            })]
+        );
+    }
+
+    #[test]
+    fn test_parse_select_expr() {
+        let input = indoc! {r#"
+            Select Case true
+                Case x=1 AND y=2
+                    z = 2
+                case x=1, y=2
+                    z = 3
+            End Select
+        "#};
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::SelectCase {
+                test_expr: Box::new(Expr::Literal(Lit::Bool(true))),
+                cases: vec![
+                    Case {
+                        tests: vec![Expr::InfixOp {
+                            op: T![and],
+                            lhs: Box::new(Expr::InfixOp {
+                                op: T![=],
+                                lhs: Box::new(Expr::ident("x")),
+                                rhs: Box::new(Expr::int(1)),
+                            }),
+                            rhs: Box::new(Expr::InfixOp {
+                                op: T![=],
+                                lhs: Box::new(Expr::ident("y")),
+                                rhs: Box::new(Expr::int(2)),
+                            }),
+                        },],
+                        body: vec![Stmt::Assignment {
+                            full_ident: FullIdent::ident("z"),
+                            value: Box::new(Expr::int(2)),
+                        }]
+                    },
+                    Case {
+                        tests: vec![
+                            Expr::InfixOp {
+                                op: T![=],
+                                lhs: Box::new(Expr::ident("x")),
+                                rhs: Box::new(Expr::int(1)),
+                            },
+                            Expr::InfixOp {
+                                op: T![=],
+                                lhs: Box::new(Expr::ident("y")),
+                                rhs: Box::new(Expr::int(2)),
+                            },
+                        ],
+                        body: vec![Stmt::Assignment {
+                            full_ident: FullIdent::ident("z"),
+                            value: Box::new(Expr::int(3)),
+                        }]
+                    }
+                ],
+                else_stmt: None,
             })]
         );
     }
@@ -1428,16 +1521,67 @@ Const a = 1			' some info
             items,
             vec![Item::Statement(Stmt::SelectCase {
                 test_expr: Box::new(Expr::ident("x")),
-                cases: vec![(
-                    vec![Expr::int(1), Expr::int(2),],
-                    vec![Stmt::Assignment {
+                cases: vec![Case {
+                    tests: vec![Expr::int(1), Expr::int(2),],
+                    body: vec![Stmt::Assignment {
                         full_ident: FullIdent::ident("y"),
                         value: Box::new(Expr::int(2)),
-                    }],
-                ),],
+                    }]
+                },],
                 else_stmt: Some(vec![Stmt::Assignment {
                     full_ident: FullIdent::ident("y"),
                     value: Box::new(Expr::int(4)),
+                }]),
+            })]
+        );
+    }
+
+    #[test]
+    fn test_select_inline_cases_without_colon() {
+        let input = indoc! {r#"
+            Select Case keycode
+                Case keyA    MySub True : OtherSub 1
+                Case 82      .Switch(swCPUDiag)     = t
+			    Case Else    DoNothing
+            End Select
+        "#};
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::SelectCase {
+                test_expr: Box::new(Expr::ident("keycode")),
+                cases: vec![
+                    Case {
+                        tests: vec![Expr::ident("keyA")],
+                        body: vec![
+                            Stmt::SubCall {
+                                fn_name: FullIdent::ident("MySub"),
+                                args: vec![Some(Expr::Literal(Lit::Bool(true)))],
+                            },
+                            Stmt::SubCall {
+                                fn_name: FullIdent::ident("OtherSub"),
+                                args: vec![Some(Expr::int(1))],
+                            }
+                        ],
+                    },
+                    Case {
+                        tests: vec![Expr::int(82),],
+                        body: vec![Stmt::Assignment {
+                            full_ident: FullIdent {
+                                base: IdentPart {
+                                    name: ".Switch".to_string(),
+                                    array_indices: vec![vec![Expr::ident("swCPUDiag")],],
+                                },
+                                property_accesses: vec![],
+                            },
+                            value: Box::new(Expr::ident("t")),
+                        }]
+                    },
+                ],
+                else_stmt: Some(vec![Stmt::SubCall {
+                    fn_name: FullIdent::ident("DoNothing"),
+                    args: vec![],
                 }]),
             })]
         );
@@ -1533,13 +1677,16 @@ Const a = 1			' some info
                     MemberDefinitions {
                         visibility: Visibility::Public,
                         properties: vec![
-                            ("Foo".to_string(), vec![]),
-                            ("Bar".to_string(), vec![9, 0]),
+                            ("Foo".to_string(), None),
+                            ("Bar".to_string(), Some(vec![9, 0])),
                         ],
                     },
                     MemberDefinitions {
                         visibility: Visibility::Private,
-                        properties: vec![("Qux".to_string(), vec![1]), ("Baz".to_string(), vec![]),],
+                        properties: vec![
+                            ("Qux".to_string(), Some(vec![1])),
+                            ("Baz".to_string(), None),
+                        ],
                     },
                 ],
                 dims: vec![],
@@ -1565,8 +1712,14 @@ Const a = 1			' some info
                 name: "MyClass".to_string(),
                 members: vec![],
                 dims: vec![
-                    vec![("Foo".to_string(), vec![]), ("Bar".to_string(), vec![9, 0]),],
-                    vec![("Qux".to_string(), vec![1]), ("Baz".to_string(), vec![]),]
+                    vec![
+                        ("Foo".to_string(), None),
+                        ("Bar".to_string(), Some(vec![9, 0])),
+                    ],
+                    vec![
+                        ("Qux".to_string(), Some(vec![1])),
+                        ("Baz".to_string(), None),
+                    ]
                 ],
                 member_accessors: vec![],
                 methods: vec![],
@@ -1595,7 +1748,7 @@ Const a = 1			' some info
                 name: "MyClass".to_string(),
                 members: vec![MemberDefinitions {
                     visibility: Visibility::Public,
-                    properties: vec![("Enabled".to_string(), vec![])],
+                    properties: vec![("Enabled".to_string(), None)],
                 },],
                 dims: vec![],
                 member_accessors: vec![],
