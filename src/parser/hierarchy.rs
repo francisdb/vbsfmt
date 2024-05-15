@@ -415,7 +415,19 @@ where
             T![with] => self.statement_with(),
             T![call] => self.statement_call(),
             T![ident] | T![me] | T![property_access] => {
-                // TODO we don't want to allow property access in case we are not in a with block
+                // multiple options here
+                // 1. assignment
+                // 2. sub call without args
+                // 3. sub call with args
+                //    there is some ambiguity here, because a sub call can argument might contain
+                //    parentheses, which are also used for array access
+                // 4. function call discarding the return value
+                //    In this case the function call is treated as a sub call and should not have parentheses around the arguments,
+                //    or you will get a 'compilation error: Cannot use parentheses when calling a Sub'.
+                // (also calling a function, sub or property on an object that might be located in an array)
+                //
+                // Invalid:
+                // 1. array access (fails at runtime with 'Type mismatch')
                 let ident = self.ident_deep();
                 if self.at(T![=]) {
                     // assignment
@@ -427,15 +439,22 @@ where
                     }
                 } else if self.at_new_line_or_eof() {
                     // sub call without args
+                    self.fail_if_using_parentheses_when_calling_sub(&ident);
                     Stmt::SubCall {
                         fn_name: ident,
                         args: Vec::new(),
                     }
                 } else {
                     // sub call with args
-                    let args = self.sub_arguments();
+                    self.fail_if_using_parentheses_when_calling_sub(&ident);
+
+                    // TODO this whole undoing of first parsing too much is a bit of a hack
+                    //   we should probably try to find a better way to handle this
+
+                    let (patched_ident, part_of_expression) = Self::fix_sub_ident(ident);
+                    let args = self.sub_arguments(part_of_expression);
                     Stmt::SubCall {
-                        fn_name: ident,
+                        fn_name: patched_ident,
                         args,
                     }
                 }
@@ -454,6 +473,85 @@ where
         stmt
     }
 
+    /// When calling a Sub
+    /// If the last part of the ident has any array indices
+    /// we need to re-evaluate them as part of the arguments
+    /// because they are part of the argument expression.
+    fn fix_sub_ident(ident: FullIdent) -> (FullIdent, Option<Expr>) {
+        let mut part_of_expression: Option<Expr> = None;
+        let mut last_access = ident;
+
+        if last_access.property_accesses.is_empty() {
+            // if there are no property accesses, we can just use the base
+            if !last_access.base.array_indices.is_empty() {
+                last_access
+                    .base
+                    .array_indices
+                    .last()
+                    .map(|indices| part_of_expression = indices.last().cloned());
+                last_access = FullIdent {
+                    base: IdentPart {
+                        name: last_access.base.name,
+                        array_indices: last_access
+                            .base
+                            .array_indices
+                            .iter()
+                            .take(last_access.base.array_indices.len() - 1)
+                            .cloned()
+                            .collect(),
+                    },
+                    property_accesses: vec![],
+                };
+            };
+        } else {
+            while !last_access.property_accesses.is_empty() {
+                let last = last_access.property_accesses.last().unwrap();
+                if last.array_indices.len() == 1 {
+                    let last = last.clone();
+                    // from a previous check we know that there is only one array index
+                    part_of_expression = Some(
+                        last.array_indices
+                            .first()
+                            .unwrap()
+                            .clone()
+                            .first()
+                            .unwrap()
+                            .clone(),
+                    );
+                    last_access = FullIdent {
+                        base: last_access.base,
+                        property_accesses: last_access
+                            .property_accesses
+                            .iter()
+                            .take(last_access.property_accesses.len() - 1)
+                            .cloned()
+                            .collect(),
+                    };
+                } else {
+                    break;
+                }
+            }
+        }
+        let patched_ident = last_access;
+        (patched_ident, part_of_expression)
+    }
+
+    /// A sub call statement like `something(1,2)` or `SomeArray(1).SomeSub(1,2,3)` is not valid
+    /// However a sub call statement like `something(2)` is valid as the `(2)` is considered the first argument
+    /// On windows you get a 'compilation error: Cannot use parentheses when calling a Sub'
+    fn fail_if_using_parentheses_when_calling_sub(&mut self, ident: &FullIdent) {
+        let last_part = ident.property_accesses.last().unwrap_or(&ident.base);
+        if !last_part.array_indices.is_empty() && last_part.array_indices.first().unwrap().len() > 1
+        {
+            // array access
+            let full = self.peek_full();
+            panic!(
+                "line {}, column {} compilation error: Cannot use parentheses when calling a Sub",
+                full.line, full.column
+            );
+        }
+    }
+
     fn statement_call(&mut self) -> Stmt {
         self.consume(T![call]);
         let ident = self.consume(T![ident]);
@@ -464,16 +562,19 @@ where
         Stmt::Call { name, args }
     }
 
-    fn sub_arguments(&mut self) -> Vec<Option<Expr>> {
+    fn sub_arguments(&mut self, mut first_expression_part: Option<Expr>) -> Vec<Option<Expr>> {
         let mut args = Vec::new();
         while !self.at(T![:]) && !self.at(T![nl]) && !self.at(T![EOF]) {
             // empty arguments are allowed
-            if self.at(T![,]) {
+            // TODO validate on windows!
+            if self.at(T![,]) && first_expression_part.is_none() {
                 self.consume(T![,]);
                 args.push(None);
                 continue;
             }
-            let arg = self.expression();
+            let arg = self.expression_with_prefix(first_expression_part);
+            // consume it only once
+            first_expression_part = None;
             args.push(Some(arg));
             if self.at(T![,]) {
                 self.consume(T![,]);

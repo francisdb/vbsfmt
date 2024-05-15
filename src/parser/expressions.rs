@@ -1,7 +1,7 @@
 // In parser/expressions.rs
 
 use crate::lexer::{Token, TokenKind};
-use crate::parser::ast::Lit;
+use crate::parser::ast::{Expr, Lit};
 use crate::parser::{ast, Parser};
 use crate::T;
 
@@ -9,12 +9,89 @@ impl<'input, I> Parser<'input, I>
 where
     I: Iterator<Item = Token>,
 {
+    pub fn expression_with_prefix(&mut self, first_expression_part: Option<Expr>) -> ast::Expr {
+        self.parse_expression_with_prefix(0, first_expression_part)
+    }
+
     pub fn expression(&mut self) -> ast::Expr {
         self.parse_expression(0)
     }
 
-    pub fn parse_expression(&mut self, binding_power: u8) -> ast::Expr {
-        let mut lhs = match self.peek() {
+    pub fn parse_expression(&mut self, binding_power: u8) -> Expr {
+        self.parse_expression_with_prefix(binding_power, None)
+    }
+
+    pub fn parse_expression_with_prefix(
+        &mut self,
+        binding_power: u8,
+        first_expression_part: Option<Expr>,
+    ) -> Expr {
+        let mut lhs = first_expression_part.unwrap_or_else(|| self.parse_expression_lhs());
+        loop {
+            let op = match self.peek() {
+                op @ T![+]
+                | op @ T![-]
+                | op @ T![*]
+                | op @ T![/]
+                | op @ T!['\\']
+                | op @ T![mod]
+                | op @ T![^]
+                | op @ T![=]
+                | op @ T![<>]
+                | op @ T![is]
+                | op @ T![and]
+                | op @ T![or]
+                | op @ T![<]
+                | op @ T![<=]
+                | op @ T![>]
+                | op @ T![>=]
+                | op @ T![not]
+                | op @ T![&] => op,
+                T![EOF] => break,
+                T![')'] | T![,] => break,
+                ending if ending.is_ending_expression() => break,
+                kind => {
+                    let token = *self.peek_full();
+                    let span = self.text(&token);
+                    panic!(
+                        "Unknown operator `{kind}` in expression at line {}, column {}: {span}",
+                        token.line, token.column
+                    )
+                }
+            };
+
+            if let Some((left_binding_power, right_binding_power)) = op.infix_binding_power() {
+                if left_binding_power < binding_power {
+                    // previous operator has higher binding power than
+                    // new one --> end of expression
+                    break;
+                }
+
+                self.consume(op);
+                let rhs = self.parse_expression(right_binding_power);
+                lhs = ast::Expr::InfixOp {
+                    op,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                };
+                // parsed an operator --> go round the loop again
+                continue;
+            } else {
+                // break; // Not an operator --> end of expression
+                let token = *self.peek_full();
+                let span = self.text(&token);
+                panic!(
+                    "No binding power for operator `{op}` in expression at line {}, column {}: {span}",
+                    token.line, token.column
+                )
+            }
+        }
+
+        lhs
+    }
+
+    fn parse_expression_lhs(&mut self) -> Expr {
+        match self.peek() {
             lit @ T![integer_literal]
             | lit @ T![hex_integer_literal]
             | lit @ T![octal_integer_literal]
@@ -116,88 +193,7 @@ where
                     token.line, token.column
                 )
             }
-        };
-        loop {
-            let op = match self.peek() {
-                op @ T![+]
-                | op @ T![-]
-                | op @ T![*]
-                | op @ T![/]
-                | op @ T!['\\']
-                | op @ T![mod]
-                | op @ T![^]
-                | op @ T![=]
-                | op @ T![<>]
-                | op @ T![is]
-                | op @ T![and]
-                | op @ T![or]
-                | op @ T![<]
-                | op @ T![<=]
-                | op @ T![>]
-                | op @ T![>=]
-                | op @ T![not]
-                | op @ T![&] => op,
-                T![EOF] => break,
-                T![')'] | T![,] => break,
-                ending if ending.is_ending_expression() => break,
-                kind => {
-                    let token = *self.peek_full();
-                    let span = self.text(&token);
-                    panic!(
-                        "Unknown operator `{kind}` in expression at line {}, column {}: {span}",
-                        token.line, token.column
-                    )
-                }
-            };
-
-            // if let Some((left_binding_power, ())) =
-            //     op.postfix_binding_power()
-            // {
-            //     if left_binding_power < binding_power {
-            //         // previous operator has higher binding power than
-            //         // new one --> end of expression
-            //         break;
-            //     }
-            //
-            //     self.consume(op);
-            //     // no recursive call here, because we have already
-            //     // parsed our operand `lhs`
-            //     lhs = ast::Expr::PostfixOp {
-            //         op,
-            //         expr: Box::new(lhs),
-            //     };
-            //     // parsed an operator --> go round the loop again
-            //     continue;
-            // }
-
-            if let Some((left_binding_power, right_binding_power)) = op.infix_binding_power() {
-                if left_binding_power < binding_power {
-                    // previous operator has higher binding power than
-                    // new one --> end of expression
-                    break;
-                }
-
-                self.consume(op);
-                let rhs = self.parse_expression(right_binding_power);
-                lhs = ast::Expr::InfixOp {
-                    op,
-                    lhs: Box::new(lhs),
-                    rhs: Box::new(rhs),
-                };
-                // parsed an operator --> go round the loop again
-                continue;
-            } else {
-                // break; // Not an operator --> end of expression
-                let token = *self.peek_full();
-                let span = self.text(&token);
-                panic!(
-                    "No binding power for operator `{op}` in expression at line {}, column {}: {span}",
-                    token.line, token.column
-                )
-            }
         }
-
-        lhs
     }
 }
 

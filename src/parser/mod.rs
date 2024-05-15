@@ -1668,20 +1668,76 @@ Const a = 1			' some info
             ]
         );
     }
+    #[test]
+    fn test_statement_ambiguity_accepted() {
+        // These just check what is normally valid and should not panic
+
+        // sub call for object element in multi-dimensional array
+        let input = "arr(0,0).s";
+        Parser::new(input).statement(true);
+
+        // sub call with single argument being parenthesized expression
+        let input = "DoSomething(x)";
+        Parser::new(input).statement(true);
+
+        // assignment to multi-dimensional array element
+        let input = "arr(0,0) = 1";
+        Parser::new(input).statement(true);
+
+        // this is accepted on windows, why?
+        let input = "something(0)(0)";
+        Parser::new(input).statement(true);
+
+        // deep sub call from within a multidimensional array
+        let input = "arr(0,0).DoSomething(x)";
+        Parser::new(input).statement(true);
+
+        // sub call with first arg expression
+        let input = "DoSomething (x + y) * z";
+        Parser::new(input).statement(true);
+
+        // sub call with comma after first arg in brackets
+        let input = "DoSomething (x + 1), 2";
+        Parser::new(input).statement(true);
+    }
 
     #[test]
-    fn test_parse_sub_call_with_parens() {
+    #[should_panic = "Cannot use parentheses when calling a Sub"]
+    fn test_statement_no_parenthesis_when_calling_sub() {
+        // compilation error: Cannot use parentheses when calling a Sub
+        let input = "DoSomething(0,0)";
+        Parser::new(input).statement(true);
+    }
+
+    #[test]
+    #[should_panic = "Cannot use parentheses when calling a Sub"]
+    fn test_statement_no_parenthesis_when_calling_deep_sub() {
+        // compilation error: Cannot use parentheses when calling a Sub
+        let input = "SomeArray(1,2).DoSomething(0,0,3)";
+        Parser::new(input).statement(true);
+    }
+
+    #[test]
+    #[should_panic = "Cannot use parentheses when calling a Sub"]
+    fn test_statement_no_parenthesis_when_calling_sub2() {
+        // compilation error: Cannot use parentheses when calling a Sub
+        let input = "something(0,0) + 1";
+        Parser::new(input).statement(true);
+    }
+
+    #[test]
+    fn test_parse_statement_sub_call_with_parens() {
         // This is tricky because the parens are used for both function calls, array access
         // but here they are part of the sub call first argument.
         // Would the space in front of the parens make a difference?
-        let input = "AddScore (x + y) * z";
+        let input = "DoSomething (x + y) * z";
 
         let mut parser = Parser::new(input);
         let stmt = parser.statement(true);
         assert_eq!(
             stmt,
             Stmt::SubCall {
-                fn_name: FullIdent::ident("AddScore"),
+                fn_name: FullIdent::ident("DoSomething"),
                 args: vec![Some(Expr::InfixOp {
                     op: T![*],
                     lhs: Box::new(Expr::InfixOp {
@@ -1690,6 +1746,32 @@ Const a = 1			' some info
                         rhs: Box::new(Expr::ident("y")),
                     }),
                     rhs: Box::new(Expr::ident("z"))
+                })],
+            },
+        );
+    }
+
+    #[test]
+    fn test_parse_statement_sub_call_with_parens2() {
+        // This is tricky because the parens are used for both function calls, array access
+        // but here they are part of the sub call first argument.
+        // Would the space in front of the parens make a difference?
+        let input = "DoSomething z * (x + y)";
+
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(
+            stmt,
+            Stmt::SubCall {
+                fn_name: FullIdent::ident("DoSomething"),
+                args: vec![Some(Expr::InfixOp {
+                    op: T![*],
+                    lhs: Box::new(Expr::ident("z")),
+                    rhs: Box::new(Expr::InfixOp {
+                        op: T![+],
+                        lhs: Box::new(Expr::ident("x")),
+                        rhs: Box::new(Expr::ident("y")),
+                    }),
                 })],
             },
         );

@@ -394,17 +394,20 @@ pub struct MemberDefinitions {
 pub enum Item {
     // https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/scripting-articles/bw9t3484%28v%3Dvs.84%29
     OptionExplicit,
+    // https://learn.microsoft.com/en-us/previous-versions//x7hbf8fa(v=vs.85)
     Function {
         name: String,
         parameters: Vec<Argument>,
         body: Vec<Stmt>,
     },
+    // https://learn.microsoft.com/en-us/previous-versions//tt223ahx(v=vs.85)
     Sub {
         name: String,
         // TODO handle ByVal and ByRef
         parameters: Vec<Argument>,
         body: Vec<Stmt>,
     },
+    // https://learn.microsoft.com/en-us/previous-versions//4ah5852c(v=vs.85)
     Class {
         name: String,
         members: Vec<MemberDefinitions>,
