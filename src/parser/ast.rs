@@ -349,11 +349,7 @@ pub enum Stmt {
     /// must be enclosed in parentheses. If you omit the Call keyword, you also must omit
     /// the parentheses around argumentlist. If you use either Call syntax to call any intrinsic
     /// or user-defined function, the function's return value is discarded.
-    Call {
-        name: String,
-        /// TODO are empty arguments allowed?
-        args: Vec<Expr>,
-    },
+    Call(FullIdent),
     With {
         object: FullIdent,
         body: Vec<Stmt>,

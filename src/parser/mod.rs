@@ -1878,20 +1878,37 @@ Const a = 1			' some info
         let input = indoc! { r#"
             Call MyFunction
             Call MyOtherFunction(1, 2)
+            Call mQue3(ii)(mQue2(ii))
         "#};
         let mut parser = Parser::new(input);
         let items = parser.file();
         assert_eq!(
             items,
             vec![
-                Item::Statement(Stmt::Call {
-                    name: "MyFunction".to_string(),
-                    args: vec![],
-                }),
-                Item::Statement(Stmt::Call {
-                    name: "MyOtherFunction".to_string(),
-                    args: vec![Expr::int(1), Expr::int(2)],
-                }),
+                Item::Statement(Stmt::Call(FullIdent::ident("MyFunction"))),
+                Item::Statement(Stmt::Call(FullIdent {
+                    base: IdentPart {
+                        name: "MyOtherFunction".to_string(),
+                        array_indices: vec![vec![Expr::int(1), Expr::int(2)],],
+                    },
+                    property_accesses: vec![],
+                })),
+                Item::Statement(Stmt::Call(FullIdent {
+                    base: IdentPart {
+                        name: "mQue3".to_string(),
+                        array_indices: vec![
+                            vec![Expr::ident("ii")],
+                            vec![Expr::IdentFnSubCall(FullIdent {
+                                base: IdentPart {
+                                    name: "mQue2".to_string(),
+                                    array_indices: vec![vec![Expr::ident("ii")]],
+                                },
+                                property_accesses: vec![],
+                            })],
+                        ],
+                    },
+                    property_accesses: vec![],
+                })),
             ]
         );
     }

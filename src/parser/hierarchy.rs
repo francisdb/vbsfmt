@@ -613,12 +613,10 @@ where
 
     fn statement_call(&mut self) -> Stmt {
         self.consume(T![call]);
-        let ident = self.consume(T![ident]);
-        let name = self.text(&ident).to_string();
+        let ident = self.ident_deep();
         // TODO if there are no args the parens should be omitted
         //   to validate on windows
-        let args = self.parenthesized_arguments();
-        Stmt::Call { name, args }
+        Stmt::Call(ident)
     }
 
     fn sub_arguments(&mut self, mut first_expression_part: Option<Expr>) -> Vec<Option<Expr>> {
