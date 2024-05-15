@@ -901,6 +901,37 @@ Const a = 1			' some info
     }
 
     #[test]
+    fn test_single_line_if_with_many_colons() {
+        let input =
+            r#"If x < 0 Or Err Then : DoSomething obj : Else : DoSomethingElse obj : End If"#;
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(
+            stmt,
+            Stmt::IfStmt {
+                condition: Box::new(Expr::InfixOp {
+                    op: T![or],
+                    lhs: Box::new(Expr::InfixOp {
+                        op: T![<],
+                        lhs: Box::new(Expr::ident("x")),
+                        rhs: Box::new(Expr::int(0)),
+                    }),
+                    rhs: Box::new(Expr::ident("Err")),
+                }),
+                body: vec![Stmt::SubCall {
+                    fn_name: FullIdent::ident("DoSomething"),
+                    args: vec![Some(Expr::ident("obj"))],
+                },],
+                elseif_statements: vec![],
+                else_stmt: Some(vec![Stmt::SubCall {
+                    fn_name: FullIdent::ident("DoSomethingElse"),
+                    args: vec![Some(Expr::ident("obj"))],
+                },]),
+            }
+        );
+    }
+
+    #[test]
     fn test_parse_if_two_single_lines() {
         let input = r#"
             If(x <> "") Then LutValue = CDbl(x) Else LutValue = 1

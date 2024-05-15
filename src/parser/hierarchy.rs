@@ -201,7 +201,7 @@ where
         let method_name = self.text(&ident).to_string();
         let parameters = self.optional_declaration_parameter_list("Sub");
         self.consume_line_delimiter();
-        let body = self.block(&[T![end]]);
+        let body = self.block(true, &[T![end]]);
         self.consume(T![end]);
         self.consume(T![sub]);
         self.consume_if_not_eof(T![nl]);
@@ -219,7 +219,7 @@ where
         let method_name = self.text(&ident).to_string();
         let parameters = self.optional_declaration_parameter_list("Function");
         self.consume_line_delimiter();
-        let body = self.block(&[T![end]]);
+        let body = self.block(true, &[T![end]]);
         self.consume(T![end]);
         self.consume(T![function]);
         self.consume_if_not_eof(T![nl]);
@@ -274,7 +274,7 @@ where
         let name = self.text(&ident).to_string();
         let property_arguments = self.optional_parenthesized_property_arguments();
 
-        let property_body = self.block(&[T![end]]);
+        let property_body = self.block(true, &[T![end]]);
         self.consume(T![end]);
         self.consume(T![property]);
         self.consume_line_delimiter();
@@ -319,7 +319,7 @@ where
         let name = self.text(&ident).to_string();
         let parameters = self.optional_declaration_parameter_list("Sub");
         self.consume_line_delimiter();
-        let body = self.block(&[T![end]]);
+        let body = self.block(true, &[T![end]]);
 
         self.consume(T![end]);
         self.consume(T![sub]);
@@ -351,7 +351,7 @@ where
 
         self.consume(T![nl]);
         // do we need to do something special with the returned value?
-        let body = self.block(&[T![end]]);
+        let body = self.block(true, &[T![end]]);
 
         self.consume(T![end]);
         self.consume(T![function]);
@@ -430,7 +430,7 @@ where
     }
 
     /// Parse a block of statements until we reach an `end` token.
-    pub fn block(&mut self, end_tokens: &[TokenKind]) -> Vec<Stmt> {
+    pub fn block(&mut self, multi_line: bool, end_tokens: &[TokenKind]) -> Vec<Stmt> {
         let mut stmts = Vec::new();
         while !end_tokens.contains(&self.peek()) {
             if !self.at(T![nl]) && !self.at(T![:]) {
@@ -440,7 +440,11 @@ where
             if end_tokens.contains(&self.peek()) {
                 break;
             } else if self.at(T![nl]) {
-                self.consume(T![nl]);
+                if multi_line {
+                    self.consume(T![nl]);
+                } else {
+                    break;
+                }
             } else if self.at(T![:]) {
                 self.consume(T![:]);
             }
@@ -715,7 +719,7 @@ where
         self.consume(T![with]);
         let object = self.ident_deep();
         self.consume_line_delimiter();
-        let body = self.block(&[T![end]]);
+        let body = self.block(true, &[T![end]]);
         self.consume(T![end]);
         self.consume(T![with]);
         Stmt::With { object, body }
@@ -788,7 +792,7 @@ where
             if self.at(T![else]) {
                 self.consume(T![else]);
                 self.consume_optional_line_delimiter();
-                let block = self.block(&[T![end], T![case]]);
+                let block = self.block(true, &[T![end], T![case]]);
                 else_stmt = Some(block);
             } else {
                 let mut tests = Vec::new();
@@ -801,7 +805,7 @@ where
                     tests.push(expr);
                 }
                 self.consume_optional_line_delimiter();
-                let body = self.block(&[T![end], T![case]]);
+                let body = self.block(true, &[T![end], T![case]]);
                 cases.push(Case { tests, body });
             }
         }
@@ -825,7 +829,7 @@ where
             let group = Box::new(self.expression());
             self.consume_line_delimiter();
 
-            let body = self.block(&[T![next]]);
+            let body = self.block(true, &[T![next]]);
 
             self.consume(T![next]);
 
@@ -849,7 +853,7 @@ where
             };
             self.consume_line_delimiter();
 
-            let body = self.block(&[T![next]]);
+            let body = self.block(true, &[T![next]]);
 
             self.consume(T![next]);
 
@@ -875,7 +879,7 @@ where
             check = DoLoopCheck::Pre(DoLoopCondition::Until(Box::new(self.expression())))
         }
 
-        let body = self.block(&[T![loop]]);
+        let body = self.block(true, &[T![loop]]);
         self.consume(T![loop]);
 
         if self.at(T![while]) {
@@ -894,7 +898,7 @@ where
         let condition = self.expression();
         self.consume(T![nl]);
 
-        let body = self.block(&[T![wend]]);
+        let body = self.block(true, &[T![wend]]);
 
         self.consume(T![wend]);
 
@@ -943,20 +947,20 @@ where
         // if we have a newline, it's a block if statement
         if self.at(T![nl]) {
             self.consume(T![nl]);
-            let body = self.block(&[T![end], T![else], T![elseif]]);
+            let body = self.block(true, &[T![end], T![else], T![elseif]]);
             let mut elseif_statements = Vec::new();
             while self.at(T![elseif]) {
                 self.consume(T![elseif]);
                 let condition = self.expression();
                 self.consume(T![then]);
                 self.consume(T![nl]);
-                let block = self.block(&[T![end], T![else], T![elseif]]);
+                let block = self.block(true, &[T![end], T![else], T![elseif]]);
                 elseif_statements.push((Box::new(condition), block));
             }
             let else_stmt = if self.at(T![else]) {
                 self.consume(T![else]);
                 self.consume(T![nl]);
-                Some(self.block(&[T![end]]))
+                Some(self.block(true, &[T![end]]))
             } else {
                 None
             };
@@ -971,50 +975,18 @@ where
         } else {
             // single line if statement
             // can contain multiple statements if separated by colons
-            let mut body = Vec::new();
-            while !self.at(T![nl])
-                && !self.at(T![else])
-                && !self.at(T![elseif])
-                && !self.at(T![end])
-                && !self.at(T![EOF])
-            {
-                let inline_stmt = self.statement(false);
-                body.push(inline_stmt);
-                if self.at(T![:]) {
-                    self.consume(T![:]);
-                }
-            }
-
+            let body = self.block(false, &[T![else], T![elseif], T![end], T![EOF]]);
             let mut elseif_statements = Vec::new();
             while self.at(T![elseif]) {
                 self.consume(T![elseif]);
                 let condition = self.expression();
                 self.consume(T![then]);
-                let mut elseif_body = Vec::new();
-                while !self.at(T![nl])
-                    && !self.at(T![else])
-                    && !self.at(T![elseif])
-                    && !self.at(T![end])
-                    && !self.at(T![EOF])
-                {
-                    let inline_stmt = self.statement(false);
-                    elseif_body.push(inline_stmt);
-                    if self.at(T![:]) {
-                        self.consume(T![:]);
-                    }
-                }
+                let elseif_body = self.block(false, &[T![else], T![elseif], T![end], T![EOF]]);
                 elseif_statements.push((Box::new(condition), elseif_body));
             }
             let else_stmt = if self.at(T![else]) {
                 self.consume(T![else]);
-                let mut else_body = Vec::new();
-                while !self.at(T![end]) && !self.at(T![EOF]) && !self.at(T![nl]) {
-                    let inline_stmt = self.statement(false);
-                    else_body.push(inline_stmt);
-                    if self.at(T![:]) {
-                        self.consume(T![:]);
-                    }
-                }
+                let else_body = self.block(false, &[T![end], T![EOF]]);
                 Some(else_body)
             } else {
                 None
