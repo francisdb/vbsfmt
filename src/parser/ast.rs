@@ -209,7 +209,7 @@ impl Expr {
         Expr::IdentFnSubCall(FullIdent::ident(name))
     }
 
-    pub fn int(i: usize) -> Self {
+    pub fn int(i: isize) -> Self {
         Expr::Literal(Lit::Int(i))
     }
 
@@ -220,7 +220,7 @@ impl Expr {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Lit {
-    Int(usize),
+    Int(isize),
     Float(f64),
     Str(String),
     Bool(bool),
@@ -516,7 +516,7 @@ impl Lit {
         Lit::Str(s.into())
     }
 
-    pub fn int(i: usize) -> Self {
+    pub fn int(i: isize) -> Self {
         Lit::Int(i)
     }
 }

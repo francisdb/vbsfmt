@@ -1133,9 +1133,9 @@ Const a = 1			' some info
     }
 
     #[test]
-    fn parse_const_private() {
+    fn parse_const_private_negative_int() {
         let input = indoc! {r#"
-            Private Const Test = 1
+            Private Const Test = -1
         "#};
         let mut parser = Parser::new(input);
         let all = parser.file();
@@ -1143,7 +1143,7 @@ Const a = 1			' some info
             all,
             vec![Item::Const {
                 visibility: Visibility::Private,
-                values: vec![("Test".to_string(), Lit::int(1))],
+                values: vec![("Test".to_string(), Lit::int(-1))],
             }]
         );
     }
@@ -1305,6 +1305,23 @@ Const a = 1			' some info
                     }]),
                 }),
             ]
+        );
+    }
+
+    #[test]
+    fn test_assignment_with_negative_int() {
+        let input = "x = -1";
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::Assignment {
+                full_ident: FullIdent::ident("x"),
+                value: Box::new(Expr::PrefixOp {
+                    op: T![-],
+                    expr: Box::new(Expr::int(1)),
+                }),
+            })]
         );
     }
 

@@ -543,15 +543,29 @@ mod test {
         let input = " _ \t \r\n";
         let mut lexer = Lexer::new(input);
         let tokens: Vec<_> = lexer.tokenize().iter().map(|t| t.kind).collect();
-        assert_eq!(tokens, [T![line_continuation], T![EOF],]);
+        assert_eq!(tokens, [T![ws], T![line_continuation], T![EOF],]);
         let input = " _  \n";
         let mut lexer = Lexer::new(input);
         let tokens: Vec<_> = lexer.tokenize().iter().map(|t| t.kind).collect();
-        assert_eq!(tokens, [T![line_continuation], T![EOF],]);
+        assert_eq!(tokens, [T![ws], T![line_continuation], T![EOF],]);
         let input = " _\r";
         let mut lexer = Lexer::new(input);
         let tokens: Vec<_> = lexer.tokenize().iter().map(|t| t.kind).collect();
-        assert_eq!(tokens, [T![line_continuation], T![EOF],]);
+        assert_eq!(tokens, [T![ws], T![line_continuation], T![EOF],]);
+        let input = "this &_\r\nthat";
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.tokenize().iter().map(|t| t.kind).collect();
+        assert_eq!(
+            tokens,
+            [
+                T![ident],
+                T![ws],
+                T![&],
+                T![line_continuation],
+                T![ident],
+                T![EOF],
+            ]
+        );
     }
 
     #[test]
@@ -561,5 +575,21 @@ mod test {
         let mut lexer = Lexer::new(input);
         let tokens: Vec<_> = lexer.tokenize().iter().map(|t| t.kind).collect();
         assert_eq!(tokens, [T![nl], T![nl], T![nl], T![EOF],]);
+    }
+
+    #[test]
+    fn test_identifier_cant_start_with_underscore() {
+        let input = "_x";
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.tokenize().iter().map(|t| t.kind).collect();
+        assert_eq!(tokens, [T![error], T![ident], T![EOF],]);
+    }
+
+    #[test]
+    fn test_identifier_can_end_with_underscore() {
+        let input = "x_";
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.tokenize().iter().map(|t| t.kind).collect();
+        assert_eq!(tokens, [T![ident], T![EOF],]);
     }
 }

@@ -90,6 +90,37 @@ where
         lhs
     }
 
+    // expressions for constants are very limited, no math
+    pub fn parse_const_literal(&mut self) -> Lit {
+        let lit = match self.peek() {
+            sign @ T![+] | sign @ T![-] => {
+                self.consume(sign);
+                self.parse_literal().map(|lit| match lit {
+                    Lit::Int(i) => Lit::Int(-i),
+                    Lit::Float(f) => Lit::Float(-f),
+                    _ => {
+                        let peek = self.peek_full();
+                        panic!(
+                            "Expected literal for constant at line {}, column {}",
+                            peek.line, peek.column
+                        )
+                    }
+                })
+            }
+            _ => self.parse_literal(),
+        };
+        match lit {
+            Some(lit) => lit,
+            None => {
+                let token = self.peek_full();
+                panic!(
+                    "Expected literal for constant at line {}, column {}",
+                    token.line, token.column
+                )
+            }
+        }
+    }
+
     pub fn parse_literal(&mut self) -> Option<Lit> {
         match self.peek() {
             lit @ T![integer_literal]
@@ -118,12 +149,12 @@ where
                         }))
                     }
                     T![hex_integer_literal] => Lit::Int(
-                        usize::from_str_radix(&literal_text[2..], 16).unwrap_or_else(|_| {
+                        isize::from_str_radix(&literal_text[2..], 16).unwrap_or_else(|_| {
                             panic!("invalid hex integer literal: `{literal_text}`")
                         }),
                     ),
                     T![octal_integer_literal] => {
-                        Lit::Int(usize::from_str_radix(&literal_text[2..], 8).unwrap_or_else(
+                        Lit::Int(isize::from_str_radix(&literal_text[2..], 8).unwrap_or_else(
                             |_| panic!("invalid octal integer literal: `{literal_text}`"),
                         ))
                     }
@@ -406,6 +437,21 @@ mod test {
                     property_accesses: vec![IdentPart::ident("Name")],
                 })),
                 rhs: Box::new(Literal(Lit::str("John"))),
+            }
+        );
+    }
+
+    #[test]
+    fn test_multiline_string() {
+        let input = "test &_\r\n  \"Hello\"";
+        let mut parser = Parser::new(input);
+        let expr = parser.expression();
+        assert_eq!(
+            expr,
+            Expr::InfixOp {
+                op: T![&],
+                lhs: Box::new(Expr::IdentFnSubCall(FullIdent::ident("test"))),
+                rhs: Box::new(Literal(Lit::str("Hello"))),
             }
         );
     }

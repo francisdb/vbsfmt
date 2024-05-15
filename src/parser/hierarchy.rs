@@ -62,13 +62,7 @@ where
             let ident = self.consume(T![ident]);
             let name = self.text(&ident).to_string();
             self.consume(T![=]);
-            let literal = self.parse_literal().unwrap_or_else(|| {
-                let full = self.peek_full();
-                panic!(
-                    "Expected literal at line {}, column {} but found `{}`",
-                    full.line, full.column, full.kind
-                )
-            });
+            let literal = self.parse_const_literal();
             values.push((name, literal));
             if self.at(T![,]) {
                 self.consume(T![,]);
