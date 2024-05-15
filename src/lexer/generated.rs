@@ -246,7 +246,7 @@ pub(super) enum LogosToken {
     // TODO to be 100% correct we should also capture a line
     //   with only _ (and trailing whitespace + newline) as a line continuation
     // (\r\n?|\n) matches \r\n, \r, and \n
-    #[regex(r"_[ \t\f]*(\r\n?|\n)", word_callback)]
+    #[regex(r"_[ \t\f]*(\r\n?|\n)", newline_callback)]
     LineContinuation((usize, usize)),
 
     // comments using ' or REM
