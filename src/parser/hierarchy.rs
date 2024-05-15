@@ -668,13 +668,22 @@ where
             self.consume(T![preserve]);
             preserve = true;
         }
-        let ident = self.consume(T![ident]);
-        let var_name = self.text(&ident).to_string();
+        let mut var_bounds = Vec::new();
+        let first_var = self.consume(T![ident]);
+        let var_name = self.text(&first_var).to_string();
         let bounds = self.parenthesized_arguments();
+        var_bounds.push((var_name, bounds));
+        while self.at(T![,]) {
+            self.consume(T![,]);
+            let ident = self.consume(T![ident]);
+            let name = self.text(&ident).to_string();
+            let bounds = self.parenthesized_arguments();
+            var_bounds.push((name, bounds));
+        }
+
         Stmt::ReDim {
-            var_name,
             preserve,
-            bounds,
+            var_bounds,
         }
     }
 

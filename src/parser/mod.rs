@@ -1254,30 +1254,49 @@ Const a = 1			' some info
         assert_eq!(
             items,
             vec![Item::Statement(Stmt::ReDim {
-                var_name: "tmp".to_string(),
                 preserve: true,
-                bounds: vec![Expr::InfixOp {
-                    op: T![+],
-                    lhs: Box::new(Expr::InfixOp {
+                var_bounds: vec![(
+                    "tmp".to_string(),
+                    vec![Expr::InfixOp {
                         op: T![+],
-                        lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
-                            base: IdentPart {
-                                name: "uBound".to_string(),
-                                array_indices: vec![vec![Expr::ident("aArray")]],
-                            },
-                            property_accesses: vec![],
-                        })),
-                        rhs: Box::new(Expr::IdentFnSubCall(FullIdent {
-                            base: IdentPart {
-                                name: "uBound".to_string(),
-                                array_indices: vec![vec![Expr::ident("aInput")]],
-                            },
-                            property_accesses: vec![],
-                        })),
-                    }),
-                    rhs: Box::new(Expr::int(1)),
-                },],
+                        lhs: Box::new(Expr::InfixOp {
+                            op: T![+],
+                            lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
+                                base: IdentPart {
+                                    name: "uBound".to_string(),
+                                    array_indices: vec![vec![Expr::ident("aArray")]],
+                                },
+                                property_accesses: vec![],
+                            })),
+                            rhs: Box::new(Expr::IdentFnSubCall(FullIdent {
+                                base: IdentPart {
+                                    name: "uBound".to_string(),
+                                    array_indices: vec![vec![Expr::ident("aInput")]],
+                                },
+                                property_accesses: vec![],
+                            })),
+                        }),
+                        rhs: Box::new(Expr::int(1)),
+                    }]
+                )]
             })]
+        );
+    }
+
+    #[test]
+    fn parse_redim_multi() {
+        let input = "Redim a(length), b(2, 3)";
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(
+            stmt,
+            Stmt::ReDim {
+                preserve: false,
+                var_bounds: vec![
+                    ("a".to_string(), vec![Expr::ident("length")]),
+                    ("b".to_string(), vec![Expr::int(2), Expr::int(3)]),
+                ],
+            }
         );
     }
 

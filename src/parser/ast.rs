@@ -293,9 +293,8 @@ pub enum Stmt {
         vars: Vec<(String, Vec<Expr>)>,
     },
     ReDim {
-        var_name: String,
         preserve: bool,
-        bounds: Vec<Expr>,
+        var_bounds: Vec<(String, Vec<Expr>)>,
     },
     Const(Vec<(String, Lit)>),
     Set {
