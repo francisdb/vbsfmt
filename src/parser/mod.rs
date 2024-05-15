@@ -2046,12 +2046,11 @@ Const a = 1			' some info
         assert_eq!(
             items,
             vec![Item::Statement(Stmt::DoLoop {
-                check: DoLoopCheck::Pre,
-                condition: DoLoopCondition::While(Box::new(Expr::InfixOp {
+                check: DoLoopCheck::Pre(DoLoopCondition::While(Box::new(Expr::InfixOp {
                     op: T![>],
                     lhs: Box::new(Expr::ident("x")),
                     rhs: Box::new(Expr::int(0)),
-                })),
+                }))),
                 body: vec![Stmt::Assignment {
                     full_ident: FullIdent::ident("x"),
                     value: Box::new(Expr::InfixOp {
@@ -2076,12 +2075,11 @@ Const a = 1			' some info
         assert_eq!(
             items,
             vec![Item::Statement(Stmt::DoLoop {
-                check: DoLoopCheck::Pre,
-                condition: DoLoopCondition::Until(Box::new(Expr::InfixOp {
+                check: DoLoopCheck::Pre(DoLoopCondition::Until(Box::new(Expr::InfixOp {
                     op: T![=],
                     lhs: Box::new(Expr::ident("x")),
                     rhs: Box::new(Expr::int(0)),
-                })),
+                }))),
                 body: vec![Stmt::Assignment {
                     full_ident: FullIdent::ident("x"),
                     value: Box::new(Expr::InfixOp {
@@ -2106,12 +2104,11 @@ Const a = 1			' some info
         assert_eq!(
             items,
             vec![Item::Statement(Stmt::DoLoop {
-                check: DoLoopCheck::Post,
-                condition: DoLoopCondition::While(Box::new(Expr::InfixOp {
+                check: DoLoopCheck::Post(DoLoopCondition::While(Box::new(Expr::InfixOp {
                     op: T![>],
                     lhs: Box::new(Expr::ident("x")),
                     rhs: Box::new(Expr::int(0)),
-                })),
+                }))),
                 body: vec![Stmt::Assignment {
                     full_ident: FullIdent::ident("x"),
                     value: Box::new(Expr::InfixOp {
@@ -2136,12 +2133,11 @@ Const a = 1			' some info
         assert_eq!(
             items,
             vec![Item::Statement(Stmt::DoLoop {
-                check: DoLoopCheck::Post,
-                condition: DoLoopCondition::Until(Box::new(Expr::InfixOp {
+                check: DoLoopCheck::Post(DoLoopCondition::Until(Box::new(Expr::InfixOp {
                     op: T![=],
                     lhs: Box::new(Expr::ident("x")),
                     rhs: Box::new(Expr::int(0)),
-                })),
+                }))),
                 body: vec![Stmt::Assignment {
                     full_ident: FullIdent::ident("x"),
                     value: Box::new(Expr::InfixOp {
@@ -2150,6 +2146,44 @@ Const a = 1			' some info
                         rhs: Box::new(Expr::int(1)),
                     }),
                 }],
+            })]
+        );
+    }
+
+    #[test]
+    fn test_parse_do_loop_exit() {
+        let input = indoc! {r#"
+            Do
+                x = x - 1
+                If x = 0 Then Exit Do
+            Loop
+        "#};
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::DoLoop {
+                check: DoLoopCheck::None,
+                body: vec![
+                    Stmt::Assignment {
+                        full_ident: FullIdent::ident("x"),
+                        value: Box::new(Expr::InfixOp {
+                            op: T![-],
+                            lhs: Box::new(Expr::ident("x")),
+                            rhs: Box::new(Expr::int(1)),
+                        }),
+                    },
+                    Stmt::IfStmt {
+                        condition: Box::new(Expr::InfixOp {
+                            op: T![=],
+                            lhs: Box::new(Expr::ident("x")),
+                            rhs: Box::new(Expr::int(0)),
+                        }),
+                        body: vec![Stmt::ExitDo],
+                        elseif_statements: vec![],
+                        else_stmt: None,
+                    },
+                ],
             })]
         );
     }

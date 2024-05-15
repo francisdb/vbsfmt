@@ -252,8 +252,6 @@ pub(super) enum LogosToken {
     // comments using ' or REM
     #[regex(r"(?i)'([^\r\n]*)|rem ([^\r\n]*)")]
     Comment,
-    // #[error]
-    // Error,
 }
 
 impl LogosToken {

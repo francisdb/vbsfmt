@@ -275,8 +275,9 @@ pub enum DoLoopCondition {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum DoLoopCheck {
-    Pre,
-    Post,
+    Pre(DoLoopCondition),
+    Post(DoLoopCondition),
+    None,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -329,7 +330,6 @@ pub enum Stmt {
     },
     DoLoop {
         check: DoLoopCheck,
-        condition: DoLoopCondition,
         body: Vec<Stmt>,
     },
     // https://learn.microsoft.com/en-us/previous-versions/6ef9w614(v=vs.85)

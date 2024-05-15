@@ -867,17 +867,14 @@ where
 
     fn statement_do(&mut self) -> Stmt {
         self.consume(T![do]);
-        let mut check = DoLoopCheck::Pre;
-        let mut condition = None;
+        let mut check = DoLoopCheck::None;
 
         if self.at(T![while]) {
             self.consume(T![while]);
-            check = DoLoopCheck::Pre;
-            condition = Some(DoLoopCondition::While(Box::new(self.expression())));
+            check = DoLoopCheck::Pre(DoLoopCondition::While(Box::new(self.expression())))
         } else if self.at(T![until]) {
             self.consume(T![until]);
-            check = DoLoopCheck::Pre;
-            condition = Some(DoLoopCondition::Until(Box::new(self.expression())));
+            check = DoLoopCheck::Pre(DoLoopCondition::Until(Box::new(self.expression())))
         }
 
         let body = self.block(&[T![loop]]);
@@ -885,27 +882,13 @@ where
 
         if self.at(T![while]) {
             self.consume(T![while]);
-            check = DoLoopCheck::Post;
-            condition = Some(DoLoopCondition::While(Box::new(self.expression())));
+            check = DoLoopCheck::Post(DoLoopCondition::While(Box::new(self.expression())))
         } else if self.at(T![until]) {
             self.consume(T![until]);
-            check = DoLoopCheck::Post;
-            condition = Some(DoLoopCondition::Until(Box::new(self.expression())));
+            check = DoLoopCheck::Post(DoLoopCondition::Until(Box::new(self.expression())))
         }
 
-        let condition = condition.unwrap_or_else(|| {
-            let full = self.peek_full();
-            panic!(
-                "Expected `while` or `until` after `do` or `loop` at line {}, column {} but found `{}`",
-                full.line, full.column, full.kind
-            )
-        });
-
-        Stmt::DoLoop {
-            check,
-            condition,
-            body,
-        }
+        Stmt::DoLoop { check, body }
     }
 
     fn statement_while(&mut self) -> Stmt {
