@@ -583,6 +583,7 @@ Const a = 1			' some info
         assert_eq!(
             item,
             Item::Function {
+                visibility: Visibility::Public,
                 name: "add".to_string(),
                 parameters: vec![
                     Argument::ByVal("a".to_string()),
@@ -613,6 +614,7 @@ Const a = 1			' some info
         assert_eq!(
             item,
             Item::Sub {
+                visibility: Visibility::Public,
                 name: "log".to_string(),
                 parameters: vec![
                     Argument::ByVal("a".to_string()),
@@ -626,7 +628,7 @@ Const a = 1			' some info
     #[test]
     fn parse_empty_sub_without_args() {
         let input = indoc! {r#"
-            Sub log
+            private Sub log
             End Sub
         "#};
         let mut parser = Parser::new(input);
@@ -634,6 +636,7 @@ Const a = 1			' some info
         assert_eq!(
             item,
             Item::Sub {
+                visibility: Visibility::Private,
                 name: "log".to_string(),
                 parameters: vec![],
                 body: vec![],
@@ -649,6 +652,7 @@ Const a = 1			' some info
         assert_eq!(
             item,
             Item::Sub {
+                visibility: Visibility::Public,
                 name: "Trigger003_hit".to_string(),
                 parameters: vec![],
                 body: vec![
@@ -687,11 +691,13 @@ Const a = 1			' some info
             all,
             vec![
                 Item::Sub {
+                    visibility: Visibility::Public,
                     name: "test".to_string(),
                     parameters: vec![Argument::ByRef("a".to_string())],
                     body: vec![],
                 },
                 Item::Function {
+                    visibility: Visibility::Public,
                     name: "test2".to_string(),
                     parameters: vec![Argument::ByVal("a".to_string())],
                     body: vec![Stmt::Assignment {
@@ -1538,25 +1544,21 @@ Const a = 1			' some info
                 dims: vec![],
                 member_accessors: vec![],
                 methods: vec![
-                    (
-                        Visibility::Public,
-                        Item::Sub {
-                            name: "Class_Initialize".to_string(),
-                            parameters: vec![],
-                            body: vec![Stmt::Assignment {
-                                full_ident: FullIdent::ident("Enabled"),
-                                value: Box::new(Expr::Literal(Lit::Bool(true))),
-                            }],
-                        }
-                    ),
-                    (
-                        Visibility::Private,
-                        Item::Sub {
-                            name: "Class_Terminate".to_string(),
-                            parameters: vec![],
-                            body: vec![],
-                        }
-                    ),
+                    Item::Sub {
+                        visibility: Visibility::Public,
+                        name: "Class_Initialize".to_string(),
+                        parameters: vec![],
+                        body: vec![Stmt::Assignment {
+                            full_ident: FullIdent::ident("Enabled"),
+                            value: Box::new(Expr::Literal(Lit::Bool(true))),
+                        }],
+                    },
+                    Item::Sub {
+                        visibility: Visibility::Private,
+                        name: "Class_Terminate".to_string(),
+                        parameters: vec![],
+                        body: vec![],
+                    }
                 ],
             },]
         );

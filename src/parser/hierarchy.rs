@@ -23,8 +23,27 @@ where
     pub fn item(&mut self) -> ast::Item {
         match self.peek() {
             T![option] => self.item_option(),
-            T![function] => self.item_function(),
-            T![sub] => self.item_sub(),
+            vis @ T![public] | vis @ T![private] => {
+                let visibility = match self.consume(vis).kind {
+                    T![public] => Visibility::Public,
+                    T![private] => Visibility::Private,
+                    _ => unreachable!(),
+                };
+
+                match self.peek() {
+                    T![function] => self.item_function(visibility),
+                    T![sub] => self.item_sub(visibility),
+                    _ => {
+                        let peek = self.peek_full();
+                        panic!(
+                            "Expected `function` or `sub` after visibility at line {}, column {} but found `{}`",
+                            peek.line, peek.column, peek.kind
+                        )
+                    }
+                }
+            }
+            T![function] => self.item_function(Visibility::Public),
+            T![sub] => self.item_sub(Visibility::Public),
             T![class] => self.item_class(),
             _ => {
                 // this must be a statement
@@ -137,7 +156,7 @@ where
         vars
     }
 
-    fn class_sub(&mut self, visibility: Option<Visibility>) -> (Visibility, Item) {
+    fn class_sub(&mut self, visibility: Option<Visibility>) -> Item {
         self.consume(T![sub]);
         let ident = self.consume(T![ident]);
         let method_name = self.text(&ident).to_string();
@@ -147,16 +166,15 @@ where
         self.consume(T![end]);
         self.consume(T![sub]);
         self.consume_if_not_eof(T![nl]);
-        let item = ast::Item::Sub {
+        Item::Sub {
+            visibility: visibility.unwrap_or(Visibility::Public),
             name: method_name.clone(),
             parameters,
             body,
-        };
-        let sub_visibility = visibility.unwrap_or(Visibility::Public);
-        (sub_visibility, item)
+        }
     }
 
-    fn class_function(&mut self, visibility: Option<Visibility>) -> (Visibility, Item) {
+    fn class_function(&mut self, visibility: Option<Visibility>) -> Item {
         self.consume(T![function]);
         let ident = self.consume(T![ident]);
         let method_name = self.text(&ident).to_string();
@@ -166,13 +184,12 @@ where
         self.consume(T![end]);
         self.consume(T![function]);
         self.consume_if_not_eof(T![nl]);
-        let item = ast::Item::Function {
+        Item::Function {
+            visibility: visibility.unwrap_or(Visibility::Public),
             name: method_name.clone(),
             parameters,
             body,
-        };
-        let function_visibility = visibility.unwrap_or(Visibility::Public);
-        (function_visibility, item)
+        }
     }
 
     fn class_property(
@@ -248,7 +265,7 @@ where
         Item::OptionExplicit
     }
 
-    fn item_sub(&mut self) -> Item {
+    fn item_sub(&mut self, visibility: Visibility) -> Item {
         self.consume(T![sub]);
 
         let ident = self
@@ -270,13 +287,14 @@ where
         self.consume_if_not_eof(T![nl]);
 
         Item::Sub {
+            visibility,
             name,
             parameters,
             body,
         }
     }
 
-    fn item_function(&mut self) -> Item {
+    fn item_function(&mut self, visibility: Visibility) -> Item {
         self.consume(T![function]);
 
         let ident = self
@@ -301,6 +319,7 @@ where
         self.consume(T![nl]);
 
         Item::Function {
+            visibility,
             name,
             parameters,
             body,

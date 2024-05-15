@@ -414,12 +414,14 @@ pub enum Item {
     OptionExplicit,
     // https://learn.microsoft.com/en-us/previous-versions//x7hbf8fa(v=vs.85)
     Function {
+        visibility: Visibility,
         name: String,
         parameters: Vec<Argument>,
         body: Vec<Stmt>,
     },
     // https://learn.microsoft.com/en-us/previous-versions//tt223ahx(v=vs.85)
     Sub {
+        visibility: Visibility,
         name: String,
         // TODO handle ByVal and ByRef
         parameters: Vec<Argument>,
@@ -431,7 +433,7 @@ pub enum Item {
         members: Vec<MemberDefinitions>,
         dims: Vec<Vec<(String, Vec<usize>)>>,
         member_accessors: Vec<MemberAccess>,
-        methods: Vec<(Visibility, Item)>, // expect only functions and subs
+        methods: Vec<Item>, // expect only functions and subs
     },
     Statement(Stmt),
 }
