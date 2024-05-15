@@ -435,6 +435,12 @@ pub enum Item {
         member_accessors: Vec<MemberAccess>,
         methods: Vec<Item>, // expect only functions and subs
     },
+    /// This is a script-level const that has visibility
+    /// Consts in procedures are handled by Stmt::Const
+    Const {
+        visibility: Visibility,
+        values: Vec<(String, Lit)>,
+    },
     Statement(Stmt),
 }
 

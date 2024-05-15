@@ -1097,8 +1097,14 @@ Const a = 1			' some info
         assert_eq!(
             all,
             vec![
-                Item::Statement(Stmt::const_("x", Lit::int(42))),
-                Item::Statement(Stmt::const_("y", Lit::int(13))),
+                Item::Const {
+                    visibility: Visibility::Public,
+                    values: vec![("x".to_string(), Lit::int(42))],
+                },
+                Item::Const {
+                    visibility: Visibility::Public,
+                    values: vec![("y".to_string(), Lit::int(13))],
+                }
             ]
         );
     }
@@ -1114,10 +1120,43 @@ Const a = 1			' some info
         assert_eq!(
             all,
             vec![
-                Item::Statement(Stmt::const_("Test", Lit::Bool(false))),
-                Item::Statement(Stmt::const_("Test2", Lit::Bool(true))),
+                Item::Const {
+                    visibility: Visibility::Public,
+                    values: vec![("Test".to_string(), Lit::Bool(false))],
+                },
+                Item::Const {
+                    visibility: Visibility::Public,
+                    values: vec![("Test2".to_string(), Lit::Bool(true))],
+                }
             ]
         );
+    }
+
+    #[test]
+    fn parse_const_private() {
+        let input = indoc! {r#"
+            Private Const Test = 1
+        "#};
+        let mut parser = Parser::new(input);
+        let all = parser.file();
+        assert_eq!(
+            all,
+            vec![Item::Const {
+                visibility: Visibility::Private,
+                values: vec![("Test".to_string(), Lit::int(1))],
+            }]
+        );
+    }
+
+    #[test]
+    #[should_panic = "Unexpected token: private at line 2, column 4"]
+    fn parse_const_private_nested_fail() {
+        let input = indoc! {r#"
+            Sub Test
+                Private Const Test = 1
+            End Sub
+        "#};
+        Parser::new(input).file();
     }
 
     #[test]

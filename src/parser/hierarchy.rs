@@ -33,10 +33,11 @@ where
                 match self.peek() {
                     T![function] => self.item_function(visibility),
                     T![sub] => self.item_sub(visibility),
+                    T![const] => self.item_const(visibility),
                     _ => {
                         let peek = self.peek_full();
                         panic!(
-                            "Expected `function` or `sub` after visibility at line {}, column {} but found `{}`",
+                            "Expected `function`, `sub` or `const` after visibility at line {}, column {} but found `{}`",
                             peek.line, peek.column, peek.kind
                         )
                     }
@@ -45,12 +46,38 @@ where
             T![function] => self.item_function(Visibility::Public),
             T![sub] => self.item_sub(Visibility::Public),
             T![class] => self.item_class(),
+            T![const] => self.item_const(Visibility::Public),
             _ => {
                 // this must be a statement
                 let stmt = self.statement(true);
                 Item::Statement(stmt)
             }
         }
+    }
+
+    fn item_const(&mut self, visibility: Visibility) -> Item {
+        self.consume(T![const]);
+        let mut values = Vec::new();
+        while !self.at(T![nl]) && !self.at(T![EOF]) {
+            let ident = self.consume(T![ident]);
+            let name = self.text(&ident).to_string();
+            self.consume(T![=]);
+            let literal = self.parse_literal().unwrap_or_else(|| {
+                let full = self.peek_full();
+                panic!(
+                    "Expected literal at line {}, column {} but found `{}`",
+                    full.line, full.column, full.kind
+                )
+            });
+            values.push((name, literal));
+            if self.at(T![,]) {
+                self.consume(T![,]);
+            } else {
+                break;
+            }
+        }
+        self.consume_line_delimiter();
+        Item::Const { visibility, values }
     }
 
     fn item_class(&mut self) -> Item {
@@ -483,7 +510,7 @@ where
             unexpected => {
                 let full = self.peek_full();
                 panic!(
-                    "Unexpected token: {:?} at line {}, column {}",
+                    "Unexpected token: {} at line {}, column {}",
                     unexpected, full.line, full.column
                 );
             }
