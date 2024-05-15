@@ -141,6 +141,10 @@ impl Display for IdentPart {
     }
 }
 
+/// An identifier with optional property accesses
+/// eg `a.b.c`, `a.b(1).c`, `a.b(1)(2).c` or `a.b(1,2).c(3)`
+///
+/// note: Contructed like this because at least one identifier is required
 #[derive(Debug, Clone, PartialEq)]
 pub struct FullIdent {
     pub base: IdentPart,

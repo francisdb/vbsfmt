@@ -484,11 +484,9 @@ where
         if last_access.property_accesses.is_empty() {
             // if there are no property accesses, we can just use the base
             if !last_access.base.array_indices.is_empty() {
-                last_access
-                    .base
-                    .array_indices
-                    .last()
-                    .map(|indices| part_of_expression = indices.last().cloned());
+                if let Some(indices) = last_access.base.array_indices.last() {
+                    part_of_expression = indices.last().cloned()
+                }
                 last_access = FullIdent {
                     base: IdentPart {
                         name: last_access.base.name,
