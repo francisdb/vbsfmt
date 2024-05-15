@@ -159,8 +159,9 @@ mod test {
     use crate::parser::ast::ErrorClause::{Goto0, ResumeNext};
     use crate::parser::ast::Stmt::OnError;
     use crate::parser::ast::{
-        Argument, ArgumentType, Expr, FullIdent, IdentPart, Item, Lit, MemberAccess,
-        MemberDefinitions, PropertyType, PropertyVisibility, SetRhs, Stmt, VarRef, Visibility,
+        Argument, ArgumentType, DoLoopCheck, DoLoopCondition, Expr, FullIdent, IdentPart, Item,
+        Lit, MemberAccess, MemberDefinitions, PropertyType, PropertyVisibility, SetRhs, Stmt,
+        VarRef, Visibility,
     };
     use indoc::indoc;
     use pretty_assertions::assert_eq;
@@ -1800,6 +1801,126 @@ Const a = 1			' some info
                     rhs: Box::new(Expr::ident("z")),
                 }),
             },
+        );
+    }
+
+    #[test]
+    fn test_parse_do_while_loop() {
+        let input = indoc! {r#"
+            Do While x > 0
+                x = x - 1
+            Loop
+        "#};
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::DoLoop {
+                check: DoLoopCheck::Pre,
+                condition: DoLoopCondition::While(Box::new(Expr::InfixOp {
+                    op: T![>],
+                    lhs: Box::new(Expr::ident("x")),
+                    rhs: Box::new(Expr::int(0)),
+                })),
+                body: vec![Stmt::Assignment {
+                    full_ident: FullIdent::ident("x"),
+                    value: Box::new(Expr::InfixOp {
+                        op: T![-],
+                        lhs: Box::new(Expr::ident("x")),
+                        rhs: Box::new(Expr::int(1)),
+                    }),
+                }],
+            })]
+        );
+    }
+
+    #[test]
+    fn test_parse_do_until_loop() {
+        let input = indoc! {r#"
+            Do Until x = 0
+                x = x - 1
+            Loop
+        "#};
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::DoLoop {
+                check: DoLoopCheck::Pre,
+                condition: DoLoopCondition::Until(Box::new(Expr::InfixOp {
+                    op: T![=],
+                    lhs: Box::new(Expr::ident("x")),
+                    rhs: Box::new(Expr::int(0)),
+                })),
+                body: vec![Stmt::Assignment {
+                    full_ident: FullIdent::ident("x"),
+                    value: Box::new(Expr::InfixOp {
+                        op: T![-],
+                        lhs: Box::new(Expr::ident("x")),
+                        rhs: Box::new(Expr::int(1)),
+                    }),
+                }],
+            })]
+        );
+    }
+
+    #[test]
+    fn test_parse_do_loop_while() {
+        let input = indoc! {r#"
+            Do
+                x = x - 1
+            Loop While x > 0
+        "#};
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::DoLoop {
+                check: DoLoopCheck::Post,
+                condition: DoLoopCondition::While(Box::new(Expr::InfixOp {
+                    op: T![>],
+                    lhs: Box::new(Expr::ident("x")),
+                    rhs: Box::new(Expr::int(0)),
+                })),
+                body: vec![Stmt::Assignment {
+                    full_ident: FullIdent::ident("x"),
+                    value: Box::new(Expr::InfixOp {
+                        op: T![-],
+                        lhs: Box::new(Expr::ident("x")),
+                        rhs: Box::new(Expr::int(1)),
+                    }),
+                }],
+            })]
+        );
+    }
+
+    #[test]
+    fn test_parse_do_loop_until() {
+        let input = indoc! {r#"
+            Do
+                x = x - 1
+            Loop Until x = 0
+        "#};
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::DoLoop {
+                check: DoLoopCheck::Post,
+                condition: DoLoopCondition::Until(Box::new(Expr::InfixOp {
+                    op: T![=],
+                    lhs: Box::new(Expr::ident("x")),
+                    rhs: Box::new(Expr::int(0)),
+                })),
+                body: vec![Stmt::Assignment {
+                    full_ident: FullIdent::ident("x"),
+                    value: Box::new(Expr::InfixOp {
+                        op: T![-],
+                        lhs: Box::new(Expr::ident("x")),
+                        rhs: Box::new(Expr::int(1)),
+                    }),
+                }],
+            })]
         );
     }
 }

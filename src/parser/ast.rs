@@ -268,6 +268,18 @@ impl VarRef {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub enum DoLoopCondition {
+    While(Box<Expr>),
+    Until(Box<Expr>),
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum DoLoopCheck {
+    Pre,
+    Post,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Stmt {
     Dim {
         vars: Vec<(String, Vec<Expr>)>,
@@ -306,6 +318,11 @@ pub enum Stmt {
     ForEachStmt {
         element: String,
         group: Box<Expr>,
+        body: Vec<Stmt>,
+    },
+    DoLoop {
+        check: DoLoopCheck,
+        condition: DoLoopCondition,
         body: Vec<Stmt>,
     },
     SelectCase {

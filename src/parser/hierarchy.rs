@@ -1,7 +1,8 @@
 use crate::lexer::{Token, TokenKind};
 use crate::parser::ast::{
-    Argument, ArgumentType, ErrorClause, Expr, FullIdent, IdentPart, Item, MemberAccess,
-    MemberDefinitions, PropertyType, PropertyVisibility, SetRhs, Stmt, VarRef, Visibility,
+    Argument, ArgumentType, DoLoopCheck, DoLoopCondition, ErrorClause, Expr, FullIdent, IdentPart,
+    Item, MemberAccess, MemberDefinitions, PropertyType, PropertyVisibility, SetRhs, Stmt, VarRef,
+    Visibility,
 };
 use crate::parser::{ast, Parser};
 use crate::T;
@@ -409,6 +410,7 @@ where
             T![if] => self.statement_if(),
             T![while] => self.statement_while(),
             T![for] => self.statement_for(),
+            T![do] => self.statement_do(),
             T![select] => self.statement_select(),
             T![on] => self.statement_on(),
             T![exit] => self.statement_exit(),
@@ -791,6 +793,49 @@ where
                 step,
                 body,
             }
+        }
+    }
+
+    fn statement_do(&mut self) -> Stmt {
+        self.consume(T![do]);
+        let mut check = DoLoopCheck::Pre;
+        let mut condition = None;
+
+        if self.at(T![while]) {
+            self.consume(T![while]);
+            check = DoLoopCheck::Pre;
+            condition = Some(DoLoopCondition::While(Box::new(self.expression())));
+        } else if self.at(T![until]) {
+            self.consume(T![until]);
+            check = DoLoopCheck::Pre;
+            condition = Some(DoLoopCondition::Until(Box::new(self.expression())));
+        }
+
+        let body = self.block(&[T![loop]]);
+        self.consume(T![loop]);
+
+        if self.at(T![while]) {
+            self.consume(T![while]);
+            check = DoLoopCheck::Post;
+            condition = Some(DoLoopCondition::While(Box::new(self.expression())));
+        } else if self.at(T![until]) {
+            self.consume(T![until]);
+            check = DoLoopCheck::Post;
+            condition = Some(DoLoopCondition::Until(Box::new(self.expression())));
+        }
+
+        let condition = condition.unwrap_or_else(|| {
+            let full = self.peek_full();
+            panic!(
+                "Expected `while` or `until` after `do` or `loop` at line {}, column {} but found `{}`",
+                full.line, full.column, full.kind
+            )
+        });
+
+        Stmt::DoLoop {
+            check,
+            condition,
+            body,
         }
     }
 
