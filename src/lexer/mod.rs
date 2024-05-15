@@ -40,6 +40,7 @@ impl<'input> Iterator for LogosLexer<'input> {
             Some((token_result, span)) => match token_result {
                 Ok(token) => {
                     let (line, column) = token.line_column();
+                    //println!("{}: {}:{}", token.kind(), line, column);
                     Some(Token {
                         kind: token.kind(),
                         span: span.into(),
@@ -591,5 +592,23 @@ mod test {
         let mut lexer = Lexer::new(input);
         let tokens: Vec<_> = lexer.tokenize().iter().map(|t| t.kind).collect();
         assert_eq!(tokens, [T![ident], T![EOF],]);
+    }
+
+    #[test]
+    fn float_literal_without_fraction() {
+        let input = "1.";
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.tokenize();
+        let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
+        assert_eq!(token_kinds, [T![real_literal], T![EOF],]);
+    }
+
+    #[test]
+    fn float_literal_without_integral() {
+        let input = ".1";
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.tokenize();
+        let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
+        assert_eq!(token_kinds, [T![real_literal], T![EOF],]);
     }
 }

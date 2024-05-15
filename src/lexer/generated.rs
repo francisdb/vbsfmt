@@ -69,7 +69,7 @@ pub(super) enum LogosToken {
     #[regex(r#"&O[0-7]+"#, word_callback, priority = 2)]
     OctalInt((usize, usize)),
     #[regex(
-        r#"((\d+(\.\d+)?)|(\.\d+))([Ee](\+|-)?\d+)?"#,
+        r#"((\d+(\.\d*)?)|(\.\d+))([Ee](\+|-)?\d+)?"#,
         word_callback,
         priority = 1
     )]

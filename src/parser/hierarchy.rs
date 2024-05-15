@@ -204,7 +204,7 @@ where
         let body = self.block(true, &[T![end]]);
         self.consume(T![end]);
         self.consume(T![sub]);
-        self.consume_if_not_eof(T![nl]);
+        self.consume_line_delimiter();
         Item::Sub {
             visibility: visibility.unwrap_or(Visibility::Public),
             name: method_name.clone(),
