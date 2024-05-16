@@ -66,8 +66,8 @@ where
         });
         assert_eq!(
             token.kind, expected,
-            "Expected to consume `{}` at line {}, column {}, but found `{}`",
-            expected, token.line, token.column, token.kind
+            "{}:{} Expected to consume `{}`, but found `{}`",
+            token.line, token.column, expected, token.kind
         );
         token
     }
@@ -1039,6 +1039,48 @@ Const a = 1			' some info
                 elseif_statements: vec![],
                 else_stmt: None,
             }),]
+        );
+    }
+
+    #[test]
+    fn parse_if_mixed() {
+        let input = indoc! {r#"
+            If a = 3 Then
+                b = 0
+            Else If	a = 2 Then
+                b = 2
+                End If
+            End If
+        "#};
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(
+            stmt,
+            Stmt::IfStmt {
+                condition: Box::new(Expr::InfixOp {
+                    op: T![=],
+                    lhs: Box::new(Expr::ident("a")),
+                    rhs: Box::new(Expr::int(3)),
+                }),
+                body: vec![Stmt::Assignment {
+                    full_ident: FullIdent::ident("b"),
+                    value: Box::new(Expr::int(0)),
+                }],
+                elseif_statements: vec![],
+                else_stmt: Some(vec![Stmt::IfStmt {
+                    condition: Box::new(Expr::InfixOp {
+                        op: T![=],
+                        lhs: Box::new(Expr::ident("a")),
+                        rhs: Box::new(Expr::int(2)),
+                    }),
+                    body: vec![Stmt::Assignment {
+                        full_ident: FullIdent::ident("b"),
+                        value: Box::new(Expr::int(2)),
+                    }],
+                    elseif_statements: vec![],
+                    else_stmt: None,
+                }]),
+            }
         );
     }
 

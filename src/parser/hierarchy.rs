@@ -962,13 +962,13 @@ where
                 self.consume(T![elseif]);
                 let condition = self.expression();
                 self.consume(T![then]);
-                self.consume(T![nl]);
+                self.consume_optional_line_delimiter();
                 let block = self.block(true, &[T![end], T![else], T![elseif]]);
                 elseif_statements.push((Box::new(condition), block));
             }
             let else_stmt = if self.at(T![else]) {
                 self.consume(T![else]);
-                self.consume(T![nl]);
+                self.consume_optional_line_delimiter();
                 Some(self.block(true, &[T![end]]))
             } else {
                 None
