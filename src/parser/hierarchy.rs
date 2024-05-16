@@ -640,9 +640,11 @@ where
 
     fn sub_arguments(&mut self, mut first_expression_part: Option<Expr>) -> Vec<Option<Expr>> {
         let mut args = Vec::new();
-        while !self.at(T![:]) && !self.at(T![nl]) && !self.at(T![EOF]) {
-            // empty arguments are allowed
-            // TODO validate on windows!
+        // TODO first_expression_part might be ignored here!
+        // TODO we should be smarter here instead of having all these end conditions
+        while !self.at(T![:]) && !self.at(T![nl]) && !self.at(T![EOF]) && !self.at(T![else]) {
+            // Empty arguments are allowed, however working with them is tricky.
+            // For now I only found `TypeName(arg) = "Error"` to detect a missing argument.
             if self.at(T![,]) && first_expression_part.is_none() {
                 self.consume(T![,]);
                 args.push(None);

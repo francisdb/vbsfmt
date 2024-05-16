@@ -1008,6 +1008,56 @@ Const a = 1			' some info
 
     #[test]
     fn test_if_nested_single_line() {
+        let input = "If key = 1 Then foo.fire: If bar=1 then DoSomething() else DoSomethingElse()";
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(
+            stmt,
+            Stmt::IfStmt {
+                condition: Box::new(Expr::InfixOp {
+                    op: T![=],
+                    lhs: Box::new(Expr::ident("key")),
+                    rhs: Box::new(Expr::int(1)),
+                }),
+                body: vec![
+                    Stmt::SubCall {
+                        fn_name: FullIdent {
+                            base: IdentBase::ident("foo"),
+                            property_accesses: vec![IdentPart::ident("fire")],
+                        },
+                        args: vec![],
+                    },
+                    Stmt::IfStmt {
+                        condition: Box::new(Expr::InfixOp {
+                            op: T![=],
+                            lhs: Box::new(Expr::ident("bar")),
+                            rhs: Box::new(Expr::int(1)),
+                        }),
+                        body: vec![Stmt::SubCall {
+                            fn_name: FullIdent::ident("DoSomething"),
+                            args: vec![],
+                        }],
+                        elseif_statements: vec![],
+                        else_stmt: Some(vec![Stmt::SubCall {
+                            fn_name: FullIdent {
+                                base: IdentBase::Complete(IdentPart {
+                                    name: "DoSomethingElse".to_string(),
+                                    array_indices: vec![vec![]]
+                                },),
+                                property_accesses: vec![],
+                            },
+                            args: vec![],
+                        }]),
+                    }
+                ],
+                elseif_statements: vec![],
+                else_stmt: None,
+            }
+        );
+    }
+
+    #[test]
+    fn test_if_nested_mixed() {
         let input = indoc! {r#"
         If x > 2 Then
             If This Or That Then DoSomething 'weird comment
