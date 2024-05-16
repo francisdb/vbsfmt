@@ -46,6 +46,7 @@ where
                 | op @ T![>]
                 | op @ T![>=]
                 | op @ T![not]
+                | op @ T!['(']
                 | op @ T![&] => op,
                 T![EOF] => break,
                 T![')'] | T![,] => break,
@@ -64,6 +65,15 @@ where
                     break;
                 }
             };
+
+            if op == T!['('] {
+                let args = self.parenthesized_arguments();
+                lhs = Expr::FnCall {
+                    callee: Box::new(lhs),
+                    args,
+                };
+                continue;
+            }
 
             if let Some((left_binding_power, right_binding_power)) = op.infix_binding_power() {
                 if left_binding_power < binding_power {
@@ -193,6 +203,12 @@ where
                 let full_ident = self.ident_deep();
                 Expr::IdentFnSubCall(full_ident)
             }
+            T![new] => {
+                self.consume(T![new]);
+                let ident = self.consume(T![ident]);
+                let class_name = self.text(&ident);
+                Expr::new(class_name)
+            }
             T!['('] => {
                 // There is no AST node for grouped expressions.
                 // Parentheses just influence the tree structure.
@@ -219,6 +235,22 @@ where
                 )
             }
         }
+    }
+
+    pub(crate) fn parenthesized_arguments(&mut self) -> Vec<Expr> {
+        let mut arguments = Vec::new();
+        if self.at(T!['(']) {
+            self.consume(T!['(']);
+            while !self.at(T![')']) {
+                let expr = self.expression();
+                arguments.push(expr);
+                if self.at(T![,]) {
+                    self.consume(T![,]);
+                }
+            }
+            self.consume(T![')']);
+        };
+        arguments
     }
 }
 
@@ -436,6 +468,21 @@ mod test {
                 op: T![&],
                 lhs: Box::new(Expr::IdentFnSubCall(FullIdent::ident("test"))),
                 rhs: Box::new(Literal(Lit::str("Hello"))),
+            }
+        );
+    }
+
+    #[test]
+    fn test_default_function_call() {
+        // call the default function of a class with argument 1
+        let input = "(new Foo)(1)";
+        let mut parser = Parser::new(input);
+        let expr = parser.expression();
+        assert_eq!(
+            expr,
+            Expr::FnCall {
+                callee: Box::new(Expr::new("Foo")),
+                args: vec![Expr::int(1)]
             }
         );
     }

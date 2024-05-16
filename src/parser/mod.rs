@@ -1257,7 +1257,25 @@ Const a = 1			' some info
             items,
             vec![Item::Statement(Stmt::Set {
                 var: VarRef::ident("foo"),
-                rhs: SetRhs::new_class("Bar"),
+                rhs: SetRhs::Expr(Box::new(Expr::new("Bar"))),
+            })]
+        );
+    }
+
+    #[test]
+    fn test_set_using_new_parentheses() {
+        // This creates a new class, calls a default function that returns Me
+        let input = "Set DT1 = (new DropTarget)(1, 0, False)";
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::Set {
+                var: VarRef::ident("DT1"),
+                rhs: SetRhs::Expr(Box::new(Expr::FnCall {
+                    callee: Box::new(Expr::new("DropTarget")),
+                    args: vec![Expr::int(1), Expr::int(0), Expr::Literal(Lit::Bool(false)),],
+                })),
             })]
         );
     }

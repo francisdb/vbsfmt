@@ -272,6 +272,11 @@ pub enum Expr {
     //     op: TokenKind,
     //     expr: Box<Expr>,
     // }
+    New(String),
+    FnCall {
+        callee: Box<Expr>,
+        args: Vec<Expr>,
+    },
 }
 
 impl Expr {
@@ -285,6 +290,10 @@ impl Expr {
 
     pub fn str(s: impl Into<String>) -> Self {
         Expr::Literal(Lit::Str(s.into()))
+    }
+
+    pub fn new(name: impl Into<String>) -> Self {
+        Expr::New(name.into())
     }
 }
 
@@ -308,17 +317,12 @@ pub enum ErrorClause {
 #[derive(Debug, Clone, PartialEq)]
 pub enum SetRhs {
     Expr(Box<Expr>),
-    NewClass(String),
     Nothing,
 }
 
 impl SetRhs {
     pub fn ident(name: impl Into<String>) -> Self {
         SetRhs::Expr(Box::new(Expr::ident(name)))
-    }
-
-    pub fn new_class(class_name: impl Into<String>) -> Self {
-        SetRhs::NewClass(class_name.into())
     }
 }
 
@@ -569,6 +573,14 @@ impl fmt::Display for Expr {
             Expr::InfixOp { op, lhs, rhs } => write!(f, "({} {} {})", lhs, op, rhs),
             // Expr::PostfixOp { op, expr } =>
             //     write!(f, "({} {})", expr, op),
+            Expr::New(name) => write!(f, "New {}", name),
+            Expr::FnCall { callee, args } => {
+                write!(f, "{}(", callee)?;
+                for arg in args {
+                    write!(f, "{},", arg)?;
+                }
+                write!(f, ")")
+            }
         }
     }
 }

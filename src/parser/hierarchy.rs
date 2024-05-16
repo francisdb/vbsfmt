@@ -927,12 +927,6 @@ where
                 self.consume(T![nothing]);
                 SetRhs::Nothing
             }
-            T![new] => {
-                self.consume(T![new]);
-                let ident = self.consume(T![ident]);
-                let class_name = self.text(&ident).to_string();
-                SetRhs::NewClass(class_name)
-            }
             _ => {
                 let expr = self.expression();
                 SetRhs::Expr(Box::new(expr))
@@ -1009,22 +1003,6 @@ where
                 else_stmt,
             }
         }
-    }
-
-    fn parenthesized_arguments(&mut self) -> Vec<Expr> {
-        let mut arguments = Vec::new();
-        if self.at(T!['(']) {
-            self.consume(T!['(']);
-            while !self.at(T![')']) {
-                let expr = self.expression();
-                arguments.push(expr);
-                if self.at(T![,]) {
-                    self.consume(T![,]);
-                }
-            }
-            self.consume(T![')']);
-        };
-        arguments
     }
 
     fn multi_parenthesized_arguments(&mut self) -> Vec<Vec<Expr>> {
