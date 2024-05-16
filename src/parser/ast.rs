@@ -109,9 +109,9 @@ End Property
 #[derive(Debug, Clone, PartialEq)]
 pub struct IdentPart {
     pub name: String,
-    // there might be multiple array indices
+    // there might be multiple array indices/function calls
     // eg a(1,2)(2)
-    pub array_indices: Vec<Vec<Expr>>,
+    pub array_indices: Vec<Vec<Option<Expr>>>,
 }
 
 impl IdentPart {
@@ -138,15 +138,18 @@ pub enum IdentBase {
     /// When used as a standalone identifier, eg `variable`
     Complete(IdentPart),
     Me {
-        array_indices: Vec<Vec<Expr>>,
+        array_indices: Vec<Vec<Option<Expr>>>,
     },
 }
 
-fn fmt_indices(f: &mut Formatter, array_indices: &Vec<Vec<Expr>>) -> fmt::Result {
+fn fmt_indices(f: &mut Formatter, array_indices: &Vec<Vec<Option<Expr>>>) -> fmt::Result {
     for indices in array_indices {
         write!(f, "(")?;
         for (i, index) in indices.iter().enumerate() {
-            write!(f, "{}", index)?;
+            match index {
+                Some(index) => write!(f, "{}", index)?,
+                None => write!(f, "")?,
+            }
             if i < indices.len() - 1 {
                 write!(f, ", ")?;
             }
@@ -171,15 +174,15 @@ impl IdentBase {
         }
     }
 
-    pub fn array_indices(&self) -> &Vec<Vec<Expr>> {
+    pub fn array_indices(&self) -> &Vec<Vec<Option<Expr>>> {
         match &self {
             IdentBase::Complete(part) => &part.array_indices,
             IdentBase::Partial(part) => &part.array_indices,
-            IdentBase::Me { array_indices } => &array_indices,
+            IdentBase::Me { array_indices } => array_indices,
         }
     }
 
-    pub fn set_array_indices(&mut self, array_indices: Vec<Vec<Expr>>) {
+    pub fn set_array_indices(&mut self, array_indices: Vec<Vec<Option<Expr>>>) {
         match self {
             IdentBase::Complete(part) => part.array_indices = array_indices,
             IdentBase::Partial(part) => part.array_indices = array_indices,
@@ -428,6 +431,24 @@ pub enum Stmt {
         object: FullIdent,
         body: Vec<Stmt>,
     },
+    // https://learn.microsoft.com/en-us/previous-versions//tt223ahx(v=vs.85)
+    // There are restrictions as to where these can be defined
+    // TODO apply these restrictions, also to function
+    // You can't define a Sub procedure inside any other procedure (e.g. Function, Sub or Property Get).
+    Sub {
+        visibility: Visibility,
+        name: String,
+        // TODO handle ByVal and ByRef
+        parameters: Vec<Argument>,
+        body: Vec<Stmt>,
+    },
+    // https://learn.microsoft.com/en-us/previous-versions//x7hbf8fa(v=vs.85)
+    Function {
+        visibility: Visibility,
+        name: String,
+        parameters: Vec<Argument>,
+        body: Vec<Stmt>,
+    },
     ExitDo,
     ExitFor,
     ExitFunction,
@@ -476,6 +497,7 @@ pub struct MemberAccess {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Visibility {
+    Default,
     Public,
     Private,
 }
@@ -490,28 +512,13 @@ pub struct MemberDefinitions {
 pub enum Item {
     // https://learn.microsoft.com/en-us/previous-versions/windows/internet-explorer/ie-developer/scripting-articles/bw9t3484%28v%3Dvs.84%29
     OptionExplicit,
-    // https://learn.microsoft.com/en-us/previous-versions//x7hbf8fa(v=vs.85)
-    Function {
-        visibility: Visibility,
-        name: String,
-        parameters: Vec<Argument>,
-        body: Vec<Stmt>,
-    },
-    // https://learn.microsoft.com/en-us/previous-versions//tt223ahx(v=vs.85)
-    Sub {
-        visibility: Visibility,
-        name: String,
-        // TODO handle ByVal and ByRef
-        parameters: Vec<Argument>,
-        body: Vec<Stmt>,
-    },
     // https://learn.microsoft.com/en-us/previous-versions//4ah5852c(v=vs.85)
     Class {
         name: String,
         members: Vec<MemberDefinitions>,
         dims: Vec<Vec<(String, Option<Vec<usize>>)>>,
         member_accessors: Vec<MemberAccess>,
-        methods: Vec<Item>, // expect only functions and subs
+        methods: Vec<Stmt>, // expect only functions and subs
     },
     /// This is a script-level const that has visibility
     /// Consts in procedures are handled by Stmt::Const

@@ -31,8 +31,16 @@ where
                 };
 
                 match self.peek() {
-                    T![function] => self.item_function(visibility),
-                    T![sub] => self.item_sub(visibility),
+                    T![function] => {
+                        let item = Item::Statement(self.statement_function(visibility));
+                        self.consume_line_delimiter();
+                        item
+                    }
+                    T![sub] => {
+                        let item = Item::Statement(self.statement_sub(visibility));
+                        self.consume_line_delimiter();
+                        item
+                    }
                     T![const] => self.item_const(visibility),
                     T![ident] => self.item_variable(visibility),
                     _ => {
@@ -44,8 +52,6 @@ where
                     }
                 }
             }
-            T![function] => self.item_function(Visibility::Public),
-            T![sub] => self.item_sub(Visibility::Public),
             T![class] => self.item_class(),
             T![const] => self.item_const(Visibility::Public),
             _ => {
@@ -109,12 +115,12 @@ where
                     self.consume(T![default]);
                     default = Some(true);
                 }
-                Some(Visibility::Public)
+                Visibility::Public
             } else if self.at(T![private]) {
                 self.consume(T![private]);
-                Some(Visibility::Private)
+                Visibility::Private
             } else {
-                None
+                Visibility::Default
             };
 
             match self.peek() {
@@ -123,7 +129,7 @@ where
                 T![sub] => methods.push(self.class_sub(visibility)),
                 T![dim] => {
                     // visibility can not be set for dims
-                    if visibility.is_some() {
+                    if visibility != Visibility::Default {
                         let peek = self.peek_full();
                         panic!(
                             "Class dim does not support visibility at line {}, column {} but found '{}'",
@@ -149,15 +155,15 @@ where
         }
     }
 
-    fn class_member(&mut self, visibility: Option<Visibility>) -> MemberDefinitions {
+    fn class_member(&mut self, visibility: Visibility) -> MemberDefinitions {
         // properties
-        let visibility = visibility.unwrap_or_else(|| {
+        if visibility == Visibility::Default {
             let peek = self.peek_full();
             panic!(
                 "Expected visibility for class member at line {}, column {} but found '{}'",
                 peek.line, peek.column, peek.kind
             )
-        });
+        };
         // like a dim we can have multiple properties in one line of which some can be arrays
         let mut properties = Vec::new();
         while {
@@ -195,7 +201,7 @@ where
         vars
     }
 
-    fn class_sub(&mut self, visibility: Option<Visibility>) -> Item {
+    fn class_sub(&mut self, visibility: Visibility) -> Stmt {
         self.consume(T![sub]);
         let ident = self.consume(T![ident]);
         let method_name = self.text(&ident).to_string();
@@ -205,15 +211,15 @@ where
         self.consume(T![end]);
         self.consume(T![sub]);
         self.consume_line_delimiter();
-        Item::Sub {
-            visibility: visibility.unwrap_or(Visibility::Public),
+        Stmt::Sub {
+            visibility,
             name: method_name.clone(),
             parameters,
             body,
         }
     }
 
-    fn class_function(&mut self, visibility: Option<Visibility>) -> Item {
+    fn class_function(&mut self, visibility: Visibility) -> Stmt {
         self.consume(T![function]);
         let ident = self.consume(T![ident]);
         let method_name = self.text(&ident).to_string();
@@ -223,25 +229,21 @@ where
         self.consume(T![end]);
         self.consume(T![function]);
         self.consume_if_not_eof(T![nl]);
-        Item::Function {
-            visibility: visibility.unwrap_or(Visibility::Public),
+        Stmt::Function {
+            visibility,
             name: method_name.clone(),
             parameters,
             body,
         }
     }
 
-    fn class_property(
-        &mut self,
-        default: Option<bool>,
-        visibility: Option<Visibility>,
-    ) -> MemberAccess {
+    fn class_property(&mut self, default: Option<bool>, visibility: Visibility) -> MemberAccess {
         let property_visibility = match visibility {
-            Some(Visibility::Public) => PropertyVisibility::Public {
+            Visibility::Public => PropertyVisibility::Public {
                 default: default.unwrap_or(false),
             },
-            Some(Visibility::Private) => PropertyVisibility::Private,
-            None => PropertyVisibility::Public {
+            Visibility::Private => PropertyVisibility::Private,
+            Visibility::Default => PropertyVisibility::Public {
                 default: default.unwrap_or(false),
             },
         };
@@ -304,7 +306,7 @@ where
         Item::OptionExplicit
     }
 
-    fn item_sub(&mut self, visibility: Visibility) -> Item {
+    fn statement_sub(&mut self, visibility: Visibility) -> Stmt {
         self.consume(T![sub]);
 
         let ident = self
@@ -323,9 +325,8 @@ where
 
         self.consume(T![end]);
         self.consume(T![sub]);
-        self.consume_if_not_eof(T![nl]);
 
-        Item::Sub {
+        Stmt::Sub {
             visibility,
             name,
             parameters,
@@ -333,7 +334,7 @@ where
         }
     }
 
-    fn item_function(&mut self, visibility: Visibility) -> Item {
+    fn statement_function(&mut self, visibility: Visibility) -> Stmt {
         self.consume(T![function]);
 
         let ident = self
@@ -355,9 +356,8 @@ where
 
         self.consume(T![end]);
         self.consume(T![function]);
-        self.consume_line_delimiter();
 
-        Item::Function {
+        Stmt::Function {
             visibility,
             name,
             parameters,
@@ -465,18 +465,6 @@ where
 
     pub fn statement(&mut self, consume_delimiter: bool) -> Stmt {
         let stmt = match self.peek() {
-            // T![public] => {
-            //     self.consume(T![public]);
-            //     // TODO next could be const, dim, sub, function
-            //     // is this allowed in the root scope?
-            //     unimplemented!("Public not implemented yet")
-            // }
-            // T![private] => {
-            //     self.consume(T![public]);
-            //     // TODO next could be const, dim, sub, function
-            //     // is this allowed in the root scope?
-            //     unimplemented!("Public not implemented yet")
-            // }
             T![dim] => self.statement_dim(),
             T![redim] => self.statement_redim(),
             T![const] => self.statement_const(),
@@ -490,6 +478,32 @@ where
             T![exit] => self.statement_exit(),
             T![with] => self.statement_with(),
             T![call] => self.statement_call(),
+            T![sub] => self.statement_sub(Visibility::Default),
+            T![function] => self.statement_function(Visibility::Default),
+            T![private] | T![public] => {
+                let visibility = match self.peek() {
+                    T![public] => {
+                        self.consume(T![public]);
+                        Visibility::Public
+                    }
+                    T![private] => {
+                        self.consume(T![private]);
+                        Visibility::Private
+                    }
+                    _ => unreachable!(),
+                };
+                match self.peek() {
+                    T![sub] => self.statement_sub(visibility),
+                    T![function] => self.statement_function(visibility),
+                    _ => {
+                        let full = self.peek_full();
+                        panic!(
+                            "{}:{} Expected `sub` or `function` after visibility, but found `{}`",
+                            full.line, full.column, full.kind
+                        )
+                    }
+                }
+            }
             T![ident] | T![me] | T![.] => {
                 // multiple options here
                 // 1. assignment
@@ -562,7 +576,7 @@ where
             let base_indices = last_access.base.array_indices();
             if !base_indices.is_empty() {
                 if let Some(indices) = base_indices.last() {
-                    part_of_expression = indices.last().cloned()
+                    part_of_expression = indices.last().and_then(|y| y.clone())
                 }
                 let mut base_copy = last_access.base.clone();
                 base_copy.set_array_indices(
@@ -584,15 +598,15 @@ where
                 if last.array_indices.len() == 1 {
                     let last = last.clone();
                     // from a previous check we know that there is only one array index
-                    part_of_expression = Some(
-                        last.array_indices
-                            .first()
-                            .unwrap()
-                            .clone()
-                            .first()
-                            .unwrap()
-                            .clone(),
-                    );
+                    part_of_expression = last
+                        .array_indices
+                        .first()
+                        .unwrap()
+                        .clone()
+                        .first()
+                        .unwrap()
+                        .clone();
+
                     last_access = FullIdent {
                         base: last_access.base,
                         property_accesses: last_access
@@ -624,7 +638,7 @@ where
             // array access
             let full = self.peek_full();
             panic!(
-                "line {}, column {} compilation error: Cannot use parentheses when calling a Sub",
+                "{}:{} compilation error: Cannot use parentheses when calling a Sub",
                 full.line, full.column
             );
         }
@@ -1018,10 +1032,10 @@ where
         }
     }
 
-    fn multi_parenthesized_arguments(&mut self) -> Vec<Vec<Expr>> {
+    fn multi_parenthesized_arguments(&mut self) -> Vec<Vec<Option<Expr>>> {
         let mut arguments = Vec::new();
         while self.at(T!['(']) {
-            let group = self.parenthesized_arguments();
+            let group = self.parenthesized_optional_arguments();
             arguments.push(group);
         }
         arguments
@@ -1148,15 +1162,15 @@ mod test {
                     },
                     IdentPart {
                         name: "prop2".to_string(),
-                        array_indices: vec![vec![Expr::int(1)]]
+                        array_indices: vec![vec![Some(Expr::int(1))]]
                     },
                     IdentPart {
                         name: "prop3".to_string(),
-                        array_indices: vec![vec![Expr::int(2), Expr::int(3)]]
+                        array_indices: vec![vec![Some(Expr::int(2)), Some(Expr::int(3))]]
                     },
                     IdentPart {
                         name: "prop4".to_string(),
-                        array_indices: vec![vec![Expr::int(1)], vec![Expr::int(3)]]
+                        array_indices: vec![vec![Some(Expr::int(1))], vec![Some(Expr::int(3))]]
                     },
                     IdentPart {
                         name: "prop5".to_string(),

@@ -258,7 +258,7 @@ Const a = 1			' some info
             Expr::IdentFnSubCall(FullIdent {
                 base: IdentBase::Complete(IdentPart {
                     name: "bar".to_string(),
-                    array_indices: vec![vec![Expr::ident("x"), Expr::int(2),]],
+                    array_indices: vec![vec![Some(Expr::ident("x")), Some(Expr::int(2)),]],
                 }),
                 property_accesses: vec![],
             },)
@@ -311,22 +311,22 @@ Const a = 1			' some info
                 base: IdentBase::Complete(IdentPart {
                     name: "min".to_string(),
                     array_indices: vec![vec![
-                        Expr::InfixOp {
+                        Some(Expr::InfixOp {
                             op: T![+],
                             lhs: Box::new(Expr::ident("test")),
                             rhs: Box::new(Expr::int(4)),
-                        },
-                        Expr::IdentFnSubCall(FullIdent {
+                        }),
+                        Some(Expr::IdentFnSubCall(FullIdent {
                             base: IdentBase::Complete(IdentPart {
                                 name: "sin".to_string(),
-                                array_indices: vec![vec![Expr::InfixOp {
+                                array_indices: vec![vec![Some(Expr::InfixOp {
                                     op: T![*],
                                     lhs: Box::new(Expr::int(2)),
                                     rhs: Box::new(Expr::ident("PI")),
-                                },],],
+                                }),],],
                             }),
                             property_accesses: vec![],
-                        }),
+                        })),
                     ],],
                 }),
                 property_accesses: vec![],
@@ -496,8 +496,8 @@ Const a = 1			' some info
                     lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
                         base: IdentBase::Complete(IdentPart {
                             name: "PlayerMode".to_string(),
-                            array_indices: vec![vec![Expr::IdentFnSubCall(FullIdent::ident(
-                                "currentplayer"
+                            array_indices: vec![vec![Some(Expr::IdentFnSubCall(
+                                FullIdent::ident("currentplayer")
                             ))]],
                         }),
                         property_accesses: vec![],
@@ -509,7 +509,7 @@ Const a = 1			' some info
                     full_ident: FullIdent {
                         base: IdentBase::Complete(IdentPart {
                             name: "Blink".to_string(),
-                            array_indices: vec![vec![Expr::ident("x"), Expr::int(1)]],
+                            array_indices: vec![vec![Some(Expr::ident("x")), Some(Expr::int(1))]],
                         }),
                         property_accesses: vec![],
                     },
@@ -587,8 +587,8 @@ Const a = 1			' some info
         let item = parser.item();
         assert_eq!(
             item,
-            Item::Function {
-                visibility: Visibility::Public,
+            Item::Statement(Stmt::Function {
+                visibility: Visibility::Default,
                 name: "add".to_string(),
                 parameters: vec![
                     Argument::ByVal("a".to_string()),
@@ -602,7 +602,7 @@ Const a = 1			' some info
                         rhs: Box::new(Expr::ident("b")),
                     }),
                 }],
-            }
+            })
         );
     }
 
@@ -615,11 +615,11 @@ Const a = 1			' some info
             End Sub
         "#};
         let mut parser = Parser::new(input);
-        let item = parser.item();
+        let stmt = parser.statement(true);
         assert_eq!(
-            item,
-            Item::Sub {
-                visibility: Visibility::Public,
+            stmt,
+            Stmt::Sub {
+                visibility: Visibility::Default,
                 name: "log".to_string(),
                 parameters: vec![
                     Argument::ByVal("a".to_string()),
@@ -637,10 +637,10 @@ Const a = 1			' some info
             End Sub
         "#};
         let mut parser = Parser::new(input);
-        let item = parser.item();
+        let stmt = parser.statement(true);
         assert_eq!(
-            item,
-            Item::Sub {
+            stmt,
+            Stmt::Sub {
                 visibility: Visibility::Private,
                 name: "log".to_string(),
                 parameters: vec![],
@@ -653,11 +653,11 @@ Const a = 1			' some info
     fn parse_inline_sub_declaration() {
         let input = "Sub Trigger003_hit : RampWireRight.x = 0.1 : Light030.state = 0 : End Sub";
         let mut parser = Parser::new(input);
-        let item = parser.item();
+        let stmt = parser.statement(true);
         assert_eq!(
-            item,
-            Item::Sub {
-                visibility: Visibility::Public,
+            stmt,
+            Stmt::Sub {
+                visibility: Visibility::Default,
                 name: "Trigger003_hit".to_string(),
                 parameters: vec![],
                 body: vec![
@@ -681,6 +681,35 @@ Const a = 1			' some info
     }
 
     #[test]
+    fn parse_nested_sub_declaration() {
+        // Nested subs are available globally (hoisted)
+        // You can't define a Sub procedure inside any other procedure (e.g. Function, Sub or Property Get).
+        let input = indoc! {r#"
+            If true Then
+                Sub inner
+                    ' do something
+                End Sub
+            End If
+        "#};
+        let mut parser = Parser::new(input);
+        let file = parser.file();
+        assert_eq!(
+            file,
+            vec![Item::Statement(Stmt::IfStmt {
+                condition: Box::new(Expr::Literal(Lit::Bool(true))),
+                body: vec![Stmt::Sub {
+                    visibility: Visibility::Default,
+                    name: "inner".to_string(),
+                    parameters: vec![],
+                    body: vec![],
+                }],
+                elseif_statements: vec![],
+                else_stmt: None,
+            })],
+        );
+    }
+
+    #[test]
     fn parse_byval_byref() {
         let input = indoc! {r#"
             Sub test (ByRef a)
@@ -695,21 +724,21 @@ Const a = 1			' some info
         assert_eq!(
             all,
             vec![
-                Item::Sub {
-                    visibility: Visibility::Public,
+                Item::Statement(Stmt::Sub {
+                    visibility: Visibility::Default,
                     name: "test".to_string(),
                     parameters: vec![Argument::ByRef("a".to_string())],
                     body: vec![],
-                },
-                Item::Function {
-                    visibility: Visibility::Public,
+                }),
+                Item::Statement(Stmt::Function {
+                    visibility: Visibility::Default,
                     name: "test2".to_string(),
                     parameters: vec![Argument::ByVal("a".to_string())],
                     body: vec![Stmt::Assignment {
                         full_ident: FullIdent::ident("test2"),
                         value: Box::new(Expr::ident("a")),
                     }],
-                },
+                }),
             ]
         );
     }
@@ -952,7 +981,7 @@ Const a = 1			' some info
                         value: Box::new(Expr::IdentFnSubCall(FullIdent {
                             base: IdentBase::Complete(IdentPart {
                                 name: "CDbl".to_string(),
-                                array_indices: vec![vec![Expr::ident("x")]],
+                                array_indices: vec![vec![Some(Expr::ident("x"))]],
                             }),
                             property_accesses: vec![],
                         })),
@@ -1304,8 +1333,9 @@ Const a = 1			' some info
     }
 
     #[test]
-    #[should_panic = "2:4 Unexpected token: private"]
+    #[should_panic = "2:12 Expected `sub` or `function` after visibility, but found `const`"]
     fn parse_const_private_nested_fail() {
+        // not allowed on windows
         let input = indoc! {r#"
             Sub Test
                 Private Const Test = 1
@@ -1404,14 +1434,14 @@ Const a = 1			' some info
                             lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
                                 base: IdentBase::Complete(IdentPart {
                                     name: "uBound".to_string(),
-                                    array_indices: vec![vec![Expr::ident("aArray")]],
+                                    array_indices: vec![vec![Some(Expr::ident("aArray"))]],
                                 }),
                                 property_accesses: vec![],
                             })),
                             rhs: Box::new(Expr::IdentFnSubCall(FullIdent {
                                 base: IdentBase::Complete(IdentPart {
                                     name: "uBound".to_string(),
-                                    array_indices: vec![vec![Expr::ident("aInput")]],
+                                    array_indices: vec![vec![Some(Expr::ident("aInput"))]],
                                 }),
                                 property_accesses: vec![],
                             })),
@@ -1528,7 +1558,7 @@ Const a = 1			' some info
                 full_ident: FullIdent {
                     base: IdentBase::Complete(IdentPart {
                         name: "objectArray".to_string(),
-                        array_indices: vec![vec![Expr::ident("i")]],
+                        array_indices: vec![vec![Some(Expr::ident("i"))]],
                     }),
                     property_accesses: vec![IdentPart {
                         name: "image".to_string(),
@@ -1730,7 +1760,7 @@ Const a = 1			' some info
                             full_ident: FullIdent {
                                 base: IdentBase::Partial(IdentPart {
                                     name: "Switch".to_string(),
-                                    array_indices: vec![vec![Expr::ident("swCPUDiag")],],
+                                    array_indices: vec![vec![Some(Expr::ident("swCPUDiag"))],],
                                 }),
                                 property_accesses: vec![],
                             },
@@ -1912,7 +1942,7 @@ Const a = 1			' some info
                 dims: vec![],
                 member_accessors: vec![],
                 methods: vec![
-                    Item::Sub {
+                    Stmt::Sub {
                         visibility: Visibility::Public,
                         name: "Class_Initialize".to_string(),
                         parameters: vec![],
@@ -1921,7 +1951,7 @@ Const a = 1			' some info
                             value: Box::new(Expr::Literal(Lit::Bool(true))),
                         }],
                     },
-                    Item::Sub {
+                    Stmt::Sub {
                         visibility: Visibility::Private,
                         name: "Class_Terminate".to_string(),
                         parameters: vec![],
@@ -2004,7 +2034,7 @@ Const a = 1			' some info
                 full_ident: FullIdent {
                     base: IdentBase::Complete(IdentPart {
                         name: "foo".to_string(),
-                        array_indices: vec![vec![Expr::int(1)], vec![Expr::int(2)]],
+                        array_indices: vec![vec![Some(Expr::int(1))], vec![Some(Expr::int(2))]],
                     }),
                     property_accesses: vec![],
                 },
@@ -2029,7 +2059,7 @@ Const a = 1			' some info
                 Item::Statement(Stmt::Call(FullIdent {
                     base: IdentBase::Complete(IdentPart {
                         name: "MyOtherFunction".to_string(),
-                        array_indices: vec![vec![Expr::int(1), Expr::int(2)],],
+                        array_indices: vec![vec![Some(Expr::int(1)), Some(Expr::int(2))],],
                     }),
                     property_accesses: vec![],
                 })),
@@ -2037,14 +2067,14 @@ Const a = 1			' some info
                     base: IdentBase::Complete(IdentPart {
                         name: "mQue3".to_string(),
                         array_indices: vec![
-                            vec![Expr::ident("ii")],
-                            vec![Expr::IdentFnSubCall(FullIdent {
+                            vec![Some(Expr::ident("ii"))],
+                            vec![Some(Expr::IdentFnSubCall(FullIdent {
                                 base: IdentBase::Complete(IdentPart {
                                     name: "mQue2".to_string(),
-                                    array_indices: vec![vec![Expr::ident("ii")]],
+                                    array_indices: vec![vec![Some(Expr::ident("ii"))]],
                                 }),
                                 property_accesses: vec![],
-                            })],
+                            }))],
                         ],
                     }),
                     property_accesses: vec![],
@@ -2177,11 +2207,11 @@ Const a = 1			' some info
                     lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
                         base: IdentBase::Complete(IdentPart {
                             name: "AddScore".to_string(),
-                            array_indices: vec![vec![Expr::InfixOp {
+                            array_indices: vec![vec![Some(Expr::InfixOp {
                                 op: T![+],
                                 lhs: Box::new(Expr::ident("x")),
                                 rhs: Box::new(Expr::ident("y")),
-                            }],],
+                            })],],
                         }),
                         property_accesses: vec![],
                     })),
@@ -2192,18 +2222,45 @@ Const a = 1			' some info
     }
 
     #[test]
+    fn parse_dim_call_with_nested_empty_args() {
+        let input = r#"MySub MyFn(0, , -1)"#;
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(
+            stmt,
+            Stmt::SubCall {
+                fn_name: FullIdent::ident("MySub"),
+                args: vec![Some(Expr::IdentFnSubCall(FullIdent {
+                    base: IdentBase::Complete(IdentPart {
+                        name: "MyFn".to_string(),
+                        array_indices: vec![vec![
+                            Some(Expr::int(0)),
+                            None,
+                            Some(Expr::PrefixOp {
+                                op: T![-],
+                                expr: Box::new(Expr::int(1)),
+                            })
+                        ],],
+                    }),
+                    property_accesses: vec![],
+                }))],
+            }
+        );
+    }
+
+    #[test]
     fn test_parse_function_single_line_with_colons() {
         let input = "Function NullFunction(a) : End Function";
         let mut parser = Parser::new(input);
         let items = parser.file();
         assert_eq!(
             items,
-            vec![Item::Function {
-                visibility: Visibility::Public,
+            vec![Item::Statement(Stmt::Function {
+                visibility: Visibility::Default,
                 name: "NullFunction".to_string(),
                 parameters: vec![Argument::ByVal("a".to_string())],
                 body: vec![],
-            }]
+            })]
         );
     }
 

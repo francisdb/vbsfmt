@@ -66,7 +66,7 @@ pub(super) enum LogosToken {
     String((usize, usize)),
     #[regex(r#"\d+"#, word_callback, priority = 2)]
     Int((usize, usize)),
-    #[regex(r#"&H[0-9A-Fa-f]+"#, word_callback, priority = 2)]
+    #[regex(r#"&[Hh][0-9A-Fa-f]+"#, word_callback, priority = 2)]
     HexInt((usize, usize)),
     #[regex(r#"&O[0-7]+"#, word_callback, priority = 2)]
     OctalInt((usize, usize)),

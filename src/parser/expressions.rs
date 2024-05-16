@@ -41,6 +41,7 @@ where
                 | op @ T![is]
                 | op @ T![and]
                 | op @ T![or]
+                | op @ T![xor]
                 | op @ T![<]
                 | op @ T![<=]
                 | op @ T![>]
@@ -254,6 +255,26 @@ where
         };
         arguments
     }
+
+    pub(crate) fn parenthesized_optional_arguments(&mut self) -> Vec<Option<Expr>> {
+        let mut arguments = Vec::new();
+        if self.at(T!['(']) {
+            self.consume(T!['(']);
+            while !self.at(T![')']) {
+                let expr = if self.at(T![,]) {
+                    None
+                } else {
+                    Some(self.expression())
+                };
+                arguments.push(expr);
+                if self.at(T![,]) {
+                    self.consume(T![,]);
+                }
+            }
+            self.consume(T![')']);
+        };
+        arguments
+    }
 }
 
 trait Operator {
@@ -282,11 +303,12 @@ impl Operator for TokenKind {
     fn infix_binding_power(&self) -> Option<(u8, u8)> {
         let result = match self {
             T![or] => (1, 2),
-            T![and] => (3, 4),
-            T![=] | T![<>] | T![is] => (5, 6),
-            T![<] | T![>] | T![<=] | T![>=] => (7, 8),
-            T![+] | T![-] | T![&] => (9, 10),
-            T![*] | T![/] | T!['\\'] | T![mod] => (11, 12),
+            T![xor] => (3, 4),
+            T![and] => (5, 6),
+            T![=] | T![<>] | T![is] => (7, 8),
+            T![<] | T![>] | T![<=] | T![>=] => (9, 10),
+            T![+] | T![-] | T![&] => (11, 12),
+            T![*] | T![/] | T!['\\'] | T![mod] => (13, 14),
             T![^] => (22, 21), // <- This binds stronger to the left!
             _ => return None,
         };
