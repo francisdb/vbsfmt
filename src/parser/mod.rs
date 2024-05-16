@@ -1777,6 +1777,32 @@ Const a = 1			' some info
     }
 
     #[test]
+    fn parse_select_with_colon() {
+        let input = indoc! {r#"
+            Select case serviceLevel:
+                case kMenuTop, kMenuNone:
+                    bInService=False
+            End Select
+        "#};
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::SelectCase {
+                test_expr: Box::new(Expr::ident("serviceLevel")),
+                cases: vec![Case {
+                    tests: vec![Expr::ident("kMenuTop"), Expr::ident("kMenuNone"),],
+                    body: vec![Stmt::Assignment {
+                        full_ident: FullIdent::ident("bInService"),
+                        value: Box::new(Expr::Literal(Lit::Bool(false))),
+                    }]
+                },],
+                else_stmt: None,
+            })]
+        );
+    }
+
+    #[test]
     fn test_parse_is() {
         let input = indoc! {r#"
             If Not Controller Is Nothing Then ' Controller might no be there

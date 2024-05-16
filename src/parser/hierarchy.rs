@@ -66,8 +66,7 @@ where
         self.consume(T![const]);
         let mut values = Vec::new();
         while !self.at(T![nl]) && !self.at(T![EOF]) {
-            let ident = self.consume(T![ident]);
-            let name = self.text(&ident).to_string();
+            let name = self.identifier("const name");
             self.consume(T![=]);
             let literal = self.parse_const_literal();
             values.push((name, literal));
@@ -429,7 +428,7 @@ where
             // We might have to add more here.
             // For now we have only encountered keywords `property`, `option` and `stop`
             // Probably the `unused` keyword will also be added here
-            T![ident] | T![property] | T![stop] | T![option] | T![step] => {
+            T![ident] | T![property] | T![stop] | T![option] | T![step] | T![default] | T![set] => {
                 self.text(&ident).to_string()
             }
             _ => panic!(
@@ -504,7 +503,10 @@ where
                     }
                 }
             }
-            T![ident] | T![me] | T![.] => {
+            // property, stop, option, step was added here because it can also be used as identifier
+            // TODO find a better way to handle this without copy pasting
+            //   see `identifier()`
+            T![ident] | T![me] | T![.] | T![property] | T![stop] | T![option] | T![step] => {
                 // multiple options here
                 // 1. assignment
                 // 2. sub call without args
@@ -681,8 +683,7 @@ where
         self.consume(T![dim]);
         let mut vars = Vec::new();
         while !self.at(T![nl]) && !self.at(T![EOF]) {
-            let ident = self.consume(T![ident]);
-            let name = self.text(&ident).to_string();
+            let name = self.identifier("variable name");
             let bounds = self.parenthesized_arguments();
             vars.push((name, bounds));
             if self.at(T![,]) {
@@ -812,7 +813,7 @@ where
         self.consume(T![select]);
         self.consume(T![case]);
         let expr = self.expression();
-        self.consume(T![nl]);
+        self.consume_line_delimiter();
         let mut cases: Vec<Case> = Vec::new();
         let mut else_stmt = None;
         while !self.at(T![end]) {

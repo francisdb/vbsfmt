@@ -202,7 +202,15 @@ where
         match self.peek() {
             // TODO deduplicate this list with identifier()
             //   we have seen these tokens being used as identifiers
-            T![ident] | T![me] | T![.] | T![property] | T![stop] | T![option] | T![step] => {
+            T![ident]
+            | T![me]
+            | T![.]
+            | T![property]
+            | T![stop]
+            | T![option]
+            | T![step]
+            | T![default]
+            | T![set] => {
                 let full_ident = self.ident_deep();
                 Expr::IdentFnSubCall(full_ident)
             }
@@ -233,7 +241,7 @@ where
             kind => {
                 let token = self.peek_full();
                 panic!(
-                    "Unknown start of expression: {kind} at line {}, column {}",
+                    "{}:{} Unknown start of expression: {kind}",
                     token.line, token.column
                 )
             }
