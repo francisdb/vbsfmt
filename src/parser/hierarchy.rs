@@ -405,20 +405,8 @@ where
                 } else {
                     Argument::ByVal
                 };
-                let parameter_ident = self.next().unwrap_or_else(|| {
-                    panic!(
-                        "Tried to parse {} parameter, but there were no more tokens",
-                        item_type
-                    )
-                });
-                assert_eq!(
-                    parameter_ident.kind,
-                    T![ident],
-                    "Expected identifier as {} parameter, but found `{}`",
-                    item_type,
-                    parameter_ident.kind
-                );
-                let parameter_name = self.text(&parameter_ident).to_string();
+
+                let parameter_name = self.identifier(item_type);
                 parameters.push(modifier(parameter_name));
                 if self.at(T![,]) {
                     self.consume(T![,]);
@@ -427,6 +415,29 @@ where
             self.consume(T![')']);
         }
         parameters
+    }
+
+    pub(crate) fn identifier(&mut self, item_type: &str) -> String {
+        let ident = self.next().unwrap_or_else(|| {
+            let peek_full = self.peek_full();
+            panic!(
+                "{}:{} Tried to parse {}, but there were no more tokens",
+                peek_full.line, peek_full.column, item_type
+            )
+        });
+        let name = match ident.kind {
+            // We might have to add more here.
+            // For now we have only encountered keywords `property`, `option` and `stop`
+            // Probably the `unused` keyword will also be added here
+            T![ident] | T![property] | T![stop] | T![option] | T![step] => {
+                self.text(&ident).to_string()
+            }
+            _ => panic!(
+                "{}:{} Expected identifier as {}, but found `{}`",
+                ident.line, ident.column, item_type, ident.kind
+            ),
+        };
+        name
     }
 
     /// Parse a block of statements until we reach an `end` token.
@@ -527,8 +538,8 @@ where
             unexpected => {
                 let full = self.peek_full();
                 panic!(
-                    "Unexpected token: {} at line {}, column {}",
-                    unexpected, full.line, full.column
+                    "{}:{} Unexpected token: {}",
+                    full.line, full.column, unexpected,
                 );
             }
         };
@@ -1041,27 +1052,10 @@ where
         property_arguments
     }
 
+    // TODO git rid of this stuff, the new FnCall should be able to handle this
     pub(crate) fn ident_part(&mut self) -> IdentPart {
         // example input: `foo` or `foo(1)` or `foo(1, 2)`
-        let name = match self.next() {
-            Some(token) => match token.kind {
-                // We might have to add more here.
-                // For now we have only encountered keywords `property`, `option` and `stop`
-                // Probably the `unused` keyword will also be added here
-                T![ident] | T![property] | T![stop] | T![option] => self.text(&token).to_string(),
-                other => panic!(
-                    "Expected identifier after `.` on line {}, column {}, but found `{}`",
-                    token.line, token.column, other
-                ),
-            },
-            None => {
-                let peek = self.peek_full();
-                panic!(
-                    "Expected identifier after `.` on line {}, column {}",
-                    peek.line, peek.column
-                )
-            }
-        };
+        let name = self.identifier("identifier");
 
         let array_indices = self.multi_parenthesized_arguments();
         IdentPart {
@@ -1201,9 +1195,7 @@ mod test {
     }
 
     #[test]
-    #[should_panic(
-        expected = "Expected identifier after `.` on line 0, column 0, but found `<EOF>"
-    )]
+    #[should_panic(expected = "0:0 Expected identifier as identifier, but found `<EOF>`")]
     fn test_parse_ident_deep_fail_with_trailing_dot() {
         let input = "a.b.";
         let mut parser = Parser::new(input);

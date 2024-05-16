@@ -1212,7 +1212,7 @@ Const a = 1			' some info
     }
 
     #[test]
-    #[should_panic = "Unexpected token: private at line 2, column 4"]
+    #[should_panic = "2:4 Unexpected token: private"]
     fn parse_const_private_nested_fail() {
         let input = indoc! {r#"
             Sub Test

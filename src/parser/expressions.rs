@@ -199,7 +199,9 @@ where
         }
 
         match self.peek() {
-            T![ident] | T![me] | T![.] => {
+            // TODO deduplicate this list with identifier()
+            //   we have seen these tokens being used as identifiers
+            T![ident] | T![me] | T![.] | T![property] | T![stop] | T![option] | T![step] => {
                 let full_ident = self.ident_deep();
                 Expr::IdentFnSubCall(full_ident)
             }
