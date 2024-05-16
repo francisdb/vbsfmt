@@ -44,7 +44,7 @@ pub(super) enum LogosToken {
     Pow((usize, usize)),
     #[token("=", word_callback)]
     Eq((usize, usize)),
-    #[token("<>", word_callback)]
+    #[regex(r"<>|><", word_callback)]
     Neq((usize, usize)),
     #[regex(r#"<=|=<"#, word_callback)]
     Leq((usize, usize)),
