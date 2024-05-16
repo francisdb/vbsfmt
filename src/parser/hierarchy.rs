@@ -2,7 +2,7 @@ use crate::lexer::{Token, TokenKind};
 use crate::parser::ast::{
     Argument, ArgumentType, Case, DoLoopCheck, DoLoopCondition, ErrorClause, Expr, FullIdent,
     IdentBase, IdentPart, Item, MemberAccess, MemberDefinitions, PropertyType, PropertyVisibility,
-    SetRhs, Stmt, VarRef, Visibility,
+    SetRhs, Stmt, Visibility,
 };
 use crate::parser::{ast, Parser};
 use crate::T;
@@ -942,13 +942,7 @@ where
 
     fn statement_set(&mut self) -> Stmt {
         self.consume(T![set]);
-        let ident = self.consume(T![ident]);
-        let name = self.text(&ident).to_string();
-        let array_indices = self.parenthesized_arguments();
-        let var = VarRef {
-            name,
-            array_indices,
-        };
+        let var = self.ident_deep();
         self.consume(T![=]);
         let rhs = match self.peek() {
             T![nothing] => {

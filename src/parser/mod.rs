@@ -64,11 +64,12 @@ where
                 expected
             )
         });
-        assert_eq!(
-            token.kind, expected,
-            "{}:{} Expected to consume `{}`, but found `{}`",
-            token.line, token.column, expected, token.kind
-        );
+        if token.kind != expected {
+            panic!(
+                "{}:{} Expected to consume `{}`, but found `{}`",
+                token.line, token.column, expected, token.kind
+            );
+        }
         token
     }
 
@@ -167,7 +168,7 @@ mod test {
     use crate::parser::ast::{
         Argument, ArgumentType, Case, DoLoopCheck, DoLoopCondition, Expr, FullIdent, IdentBase,
         IdentPart, Item, Lit, MemberAccess, MemberDefinitions, PropertyType, PropertyVisibility,
-        SetRhs, Stmt, VarRef, Visibility,
+        SetRhs, Stmt, Visibility,
     };
     use indoc::indoc;
     use pretty_assertions::assert_eq;
@@ -1356,13 +1357,16 @@ Const a = 1			' some info
             file,
             vec![
                 Item::Statement(Stmt::Set {
-                    var: VarRef::ident("foo"),
+                    var: FullIdent::ident("foo"),
                     rhs: SetRhs::ident("bar"),
                 }),
                 Item::Statement(Stmt::Set {
-                    var: VarRef {
-                        name: "Obj".to_string(),
-                        array_indices: vec![Expr::ident("x")]
+                    var: FullIdent {
+                        base: IdentBase::Complete(IdentPart {
+                            name: "Obj".to_string(),
+                            array_indices: vec![vec![Some(Expr::ident("x"))]],
+                        }),
+                        property_accesses: vec![],
                     },
                     rhs: SetRhs::ident("NullFader"),
                 }),
@@ -1378,7 +1382,7 @@ Const a = 1			' some info
         assert_eq!(
             items,
             vec![Item::Statement(Stmt::Set {
-                var: VarRef::ident("foo"),
+                var: FullIdent::ident("foo"),
                 rhs: SetRhs::Expr(Box::new(Expr::new("Bar"))),
             })]
         );
@@ -1393,7 +1397,7 @@ Const a = 1			' some info
         assert_eq!(
             items,
             vec![Item::Statement(Stmt::Set {
-                var: VarRef::ident("DT1"),
+                var: FullIdent::ident("DT1"),
                 rhs: SetRhs::Expr(Box::new(Expr::FnCall {
                     callee: Box::new(Expr::new("DropTarget")),
                     args: vec![Expr::int(1), Expr::int(0), Expr::Literal(Lit::Bool(false)),],
@@ -1410,8 +1414,31 @@ Const a = 1			' some info
         assert_eq!(
             items,
             vec![Item::Statement(Stmt::Set {
-                var: VarRef::ident("foo"),
+                var: FullIdent::ident("foo"),
                 rhs: SetRhs::Nothing,
+            })]
+        );
+    }
+
+    #[test]
+    fn parse_set_deep() {
+        let input = "Set lampz.obj(x) = 1";
+        let mut parser = Parser::new(input);
+        let items = parser.file();
+        assert_eq!(
+            items,
+            vec![Item::Statement(Stmt::Set {
+                var: FullIdent {
+                    base: IdentBase::Complete(IdentPart {
+                        name: "lampz".to_string(),
+                        array_indices: vec![],
+                    }),
+                    property_accesses: vec![IdentPart {
+                        name: "obj".to_string(),
+                        array_indices: vec![vec![Some(Expr::ident("x"))]],
+                    }],
+                },
+                rhs: SetRhs::Expr(Box::new(Expr::int(1))),
             })]
         );
     }

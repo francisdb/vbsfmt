@@ -330,21 +330,6 @@ impl SetRhs {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct VarRef {
-    pub name: String,
-    pub array_indices: Vec<Expr>,
-}
-
-impl VarRef {
-    pub fn ident(name: impl Into<String>) -> Self {
-        VarRef {
-            name: name.into(),
-            array_indices: Vec::new(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub enum DoLoopCondition {
     While(Box<Expr>),
     Until(Box<Expr>),
@@ -376,7 +361,7 @@ pub enum Stmt {
     },
     Const(Vec<(String, Lit)>),
     Set {
-        var: VarRef,
+        var: FullIdent,
         rhs: SetRhs,
     },
     Assignment {
