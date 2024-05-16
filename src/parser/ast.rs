@@ -1,6 +1,6 @@
 use crate::lexer::TokenKind;
 use std::fmt;
-use std::fmt::Display;
+use std::fmt::{Display, Formatter};
 
 /*
 
@@ -126,18 +126,81 @@ impl IdentPart {
 impl Display for IdentPart {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name)?;
-
-        for indices in &self.array_indices {
-            write!(f, "(")?;
-            for (i, index) in indices.iter().enumerate() {
-                write!(f, "{}", index)?;
-                if i < indices.len() - 1 {
-                    write!(f, ", ")?;
-                }
-            }
-            write!(f, ")")?;
-        }
+        fmt_indices(f, &self.array_indices)?;
         Ok(())
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum IdentBase {
+    /// When used in a `with` statement, eg `.property`
+    Partial(IdentPart),
+    /// When used as a standalone identifier, eg `variable`
+    Complete(IdentPart),
+    Me {
+        array_indices: Vec<Vec<Expr>>,
+    },
+}
+
+fn fmt_indices(f: &mut Formatter, array_indices: &Vec<Vec<Expr>>) -> fmt::Result {
+    for indices in array_indices {
+        write!(f, "(")?;
+        for (i, index) in indices.iter().enumerate() {
+            write!(f, "{}", index)?;
+            if i < indices.len() - 1 {
+                write!(f, ", ")?;
+            }
+        }
+        write!(f, ")")?;
+    }
+    Ok(())
+}
+
+impl IdentBase {
+    pub fn ident(name: impl Into<String>) -> Self {
+        IdentBase::Complete(IdentPart::ident(name))
+    }
+
+    pub fn partial(name: impl Into<String>) -> Self {
+        IdentBase::Partial(IdentPart::ident(name))
+    }
+
+    pub fn me() -> Self {
+        IdentBase::Me {
+            array_indices: Vec::new(),
+        }
+    }
+
+    pub fn array_indices(&self) -> &Vec<Vec<Expr>> {
+        match &self {
+            IdentBase::Complete(part) => &part.array_indices,
+            IdentBase::Partial(part) => &part.array_indices,
+            IdentBase::Me { array_indices } => &array_indices,
+        }
+    }
+
+    pub fn set_array_indices(&mut self, array_indices: Vec<Vec<Expr>>) {
+        match self {
+            IdentBase::Complete(part) => part.array_indices = array_indices,
+            IdentBase::Partial(part) => part.array_indices = array_indices,
+            IdentBase::Me {
+                array_indices: me_array_indices,
+            } => *me_array_indices = array_indices,
+        }
+    }
+}
+
+impl Display for IdentBase {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            IdentBase::Partial(part) => write!(f, ".{}", part),
+            IdentBase::Complete(part) => write!(f, "{}", part),
+            IdentBase::Me { array_indices } => {
+                write!(f, "Me")?;
+                fmt_indices(f, array_indices)?;
+                Ok(())
+            }
+        }
     }
 }
 
@@ -147,14 +210,21 @@ impl Display for IdentPart {
 /// note: Contructed like this because at least one identifier is required
 #[derive(Debug, Clone, PartialEq)]
 pub struct FullIdent {
-    pub base: IdentPart,
+    pub base: IdentBase,
     pub property_accesses: Vec<IdentPart>,
 }
 
 impl FullIdent {
     pub fn ident(name: impl Into<String>) -> Self {
         FullIdent {
-            base: IdentPart::ident(name),
+            base: IdentBase::ident(name),
+            property_accesses: Vec::new(),
+        }
+    }
+
+    pub fn partial(name: impl Into<String>) -> Self {
+        FullIdent {
+            base: IdentBase::partial(name),
             property_accesses: Vec::new(),
         }
     }

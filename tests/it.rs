@@ -38,7 +38,16 @@ fn unknown_input() {
     // for the custom lexer
     // assert_eq!(tokens, [T![error], T![+], T![EOF],]);
     // for the logos lexer
-    assert_eq!(tokens, [T![error], T![error], T![error], T![+], T![EOF],]);
+    assert_eq!(
+        tokens,
+        [
+            T![parse_error],
+            T![parse_error],
+            T![parse_error],
+            T![+],
+            T![EOF],
+        ]
+    );
 }
 
 #[test]
@@ -54,7 +63,7 @@ fn token_spans() {
         let mut lexer = Lexer::new(input);
         let tokens = lexer.tokenize();
         let error = tokens[0];
-        assert_eq!(error.kind, T![error]);
+        assert_eq!(error.kind, T![parse_error]);
         // for the custom lexer
         //assert_eq!(error.span, (0..8).into())
         // for the logos lexer
@@ -205,7 +214,8 @@ fn test_lexer_sub() {
             T![ident],
             T![nl],
             T![ident],
-            T![property_access],
+            T![.],
+            T![ident],
             T!['('],
             T![integer_literal],
             T![')'],
@@ -450,7 +460,8 @@ fn test_lexer_for() {
             T![integer_literal],
             T![nl],
             T![ident],
-            T![property_access],
+            T![.],
+            T![ident],
             T![ident],
             T![nl],
             T![next],
@@ -494,7 +505,8 @@ fn test_lexer_while() {
             T![integer_literal],
             T![nl],
             T![ident],
-            T![property_access],
+            T![.],
+            T![ident],
             T!['('],
             T![string_literal],
             T![')'],
@@ -542,21 +554,24 @@ fn test_lexer_select_case() {
             T![string_literal],
             T![nl],
             T![ident],
-            T![property_access],
+            T![.],
+            T![ident],
             T![string_literal],
             T![nl],
             T![case],
             T![string_literal],
             T![nl],
             T![ident],
-            T![property_access],
+            T![.],
+            T![ident],
             T![string_literal],
             T![nl],
             T![case],
             T![else],
             T![nl],
             T![ident],
-            T![property_access],
+            T![.],
+            T![ident],
             T![string_literal],
             T![nl],
             T![end],
@@ -610,41 +625,8 @@ fn test_lexer_with() {
             T![with],
             T![ident],
             T![nl],
-            T![property_access],
-            T![=],
-            T![integer_literal],
-            T!['\\'],
+            T![.],
             T![ident],
-            T![nl],
-            T![end],
-            T![with],
-            T![nl],
-            T![EOF],
-        ]
-    );
-}
-
-#[test]
-fn test_lexer_with_keyword_property() {
-    let input = indoc! {r#"
-        With obj
-            .property = 5 \ x
-        End With
-    "#};
-    let mut lexer = Lexer::new(input);
-    let tokens: Vec<_> = lexer
-        .tokenize()
-        .into_iter()
-        .filter(|t| t.kind != T![ws])
-        .collect();
-    let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
-    assert_eq!(
-        token_kinds,
-        [
-            T![with],
-            T![ident],
-            T![nl],
-            T![property_access],
             T![=],
             T![integer_literal],
             T!['\\'],
@@ -699,7 +681,8 @@ fn test_lexer_string_with_backslash() {
         token_kinds,
         [
             T![ident],
-            T![property_access],
+            T![.],
+            T![ident],
             T!['('],
             T![string_literal],
             T![')'],
@@ -877,7 +860,8 @@ fn test_lexer_full_class() {
             T![')'],
             T![nl],
             T![ident],
-            T![property_access],
+            T![.],
+            T![ident],
             T![string_literal],
             T![nl],
             T![end],

@@ -11,6 +11,43 @@ pub struct Token {
 }
 
 impl Token {
+    pub fn error(p0: Range<i32>) -> Token {
+        Token {
+            kind: TokenKind::ParseError,
+            span: Span {
+                start: p0.start as u32,
+                end: p0.end as u32,
+            },
+            line: 0,
+            column: 0,
+        }
+    }
+    pub fn eof(p0: Range<i32>) -> Token {
+        Token {
+            kind: TokenKind::Eof,
+            span: Span {
+                start: p0.start as u32,
+                end: p0.end as u32,
+            },
+            line: 0,
+            column: 0,
+        }
+    }
+
+    pub fn ident(p1: Range<i32>, line: usize, column: usize) -> Token {
+        Token {
+            kind: TokenKind::Identifier,
+            span: Span {
+                start: p1.start as u32,
+                end: p1.end as u32,
+            },
+            line,
+            column,
+        }
+    }
+}
+
+impl Token {
     pub fn is_empty(&self) -> bool {
         self.kind == TokenKind::Eof
     }
@@ -83,6 +120,7 @@ pub enum TokenKind {
     Backslash,
     Pow,
     Eq,
+    Dot,
     Comma,
     Bang,
     Ampersand,
@@ -175,9 +213,8 @@ pub enum TokenKind {
     Resume,
     // Next is already defined as a keyword
     Goto,
-    // Misc,
-    PropertyAccess,
 
+    // Misc,
     Whitespace,
     /// CRLF, LF (or CR)
     Newline,
@@ -210,6 +247,10 @@ impl TokenKind {
 
 #[macro_export]
 macro_rules! T {
+    // Single characters
+    [.] => {
+        $crate::lexer::TokenKind::Dot
+    };
     [+] => {
         $crate::lexer::TokenKind::Plus
     };
@@ -481,9 +522,6 @@ macro_rules! T {
         $crate::lexer::TokenKind::On
     };
     // Misc
-    [property_access] => {
-        $crate::lexer::TokenKind::PropertyAccess
-    };
     [ws] => {
         $crate::lexer::TokenKind::Whitespace
     };
@@ -508,6 +546,7 @@ impl fmt::Display for TokenKind {
             "{}",
             match self {
                 // Single characters
+                T![.] => ".",
                 T![+] => "+",
                 T![-] => "-",
                 T![*] => "*",
@@ -602,7 +641,6 @@ impl fmt::Display for TokenKind {
                 T![resume] => "resume",
                 T![goto] => "goto",
                 // Misc
-                T![property_access] => ".property",
                 T![ws] => "<WS>",
                 T![nl] => "<NL>",
                 T![line_continuation] => "<_>",

@@ -22,6 +22,8 @@ fn word_callback(lex: &mut Lexer<LogosToken>) -> (usize, usize) {
 #[derive(Logos, Debug, PartialEq, Eq)]
 #[logos(extras = (usize, usize))]
 pub(super) enum LogosToken {
+    #[token(".", word_callback)]
+    Dot((usize, usize)),
     #[token(":", word_callback)]
     Colon((usize, usize)),
     #[token(",", word_callback)]
@@ -235,9 +237,6 @@ pub(super) enum LogosToken {
     )]
     KwUnused((usize, usize)),
 
-    #[regex(r"\.([A-Za-z]|_)([A-Za-z]|_|\d)*", word_callback)]
-    PropertyAccess((usize, usize)),
-
     // Misc
     #[regex(r"[ \t\f]+")]
     WS,
@@ -258,12 +257,12 @@ impl LogosToken {
     pub fn line_column(&self) -> (usize, usize) {
         use LogosToken::*;
         let mut line_col = match self {
+            Dot((line, column)) => (*line, *column),
             NewLine((line, _)) => (*line, 0),
             Ampersand((line, column)) => (*line, *column),
             Colon((line, column)) => (*line, *column),
             Comma((line, column)) => (*line, *column),
             Ident((line, column)) => (*line, *column),
-            PropertyAccess((line, column)) => (*line, *column),
             String((line, column)) => (*line, *column),
             Int((line, column)) => (*line, *column),
             HexInt((line, column)) => (*line, *column),
@@ -372,6 +371,7 @@ impl LogosToken {
     pub fn kind(&self) -> TokenKind {
         use LogosToken::*;
         match self {
+            Dot(_)          => T![.],
             Colon(_)        => T![:],
             Comma(_)        => T![,],
             Semi(_)         => T![;],
@@ -469,7 +469,6 @@ impl LogosToken {
             KwWith(_)       => T![with],
             KwXor(_)        => T![xor],
             KwUnused(_)     => T![unused],
-            PropertyAccess(_) => T![property_access],
             WS           => T![ws],
             Comment      => T![comment],
             NewLine(_)   => T![nl],

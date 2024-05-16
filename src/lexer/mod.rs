@@ -4,7 +4,7 @@ pub use token::{Token, TokenKind};
 
 use crate::lexer::rules::{unambiguous_single_char, Rule};
 use crate::lexer::token::Span;
-use crate::lexer::TokenKind::Error;
+use crate::lexer::TokenKind::ParseError;
 use crate::T;
 
 mod generated;
@@ -52,7 +52,7 @@ impl<'input> Iterator for LogosLexer<'input> {
                     // TODO can we provide more information here?
                     //   can we get the line and column number?
                     Some(Token {
-                        kind: Error,
+                        kind: ParseError,
                         span: span.into(),
                         line: 0,
                         column: 0,
@@ -62,6 +62,8 @@ impl<'input> Iterator for LogosLexer<'input> {
             None if self.eof => None,
             None => {
                 self.eof = true;
+                // TODO can we provide more information here?
+                //   can we get the line and column number?
                 Some(Token {
                     kind: T![EOF],
                     span: (0..0).into(),
@@ -203,7 +205,7 @@ impl<'input> Iterator for CustomLexer<'input> {
 
 #[cfg(test)]
 mod test {
-    use crate::lexer::Lexer;
+    use crate::lexer::{Lexer, Token};
     use crate::T;
     use indoc::indoc;
     use pretty_assertions::assert_eq;
@@ -385,9 +387,12 @@ mod test {
             tokens,
             vec![
                 T![ident],
-                T![property_access],
-                T![property_access],
-                T![property_access],
+                T![.],
+                T![ident],
+                T![.],
+                T![ident],
+                T![.],
+                T![ident],
                 T![EOF],
             ]
         );
@@ -582,8 +587,15 @@ mod test {
     fn test_identifier_cant_start_with_underscore() {
         let input = "_x";
         let mut lexer = Lexer::new(input);
-        let tokens: Vec<_> = lexer.tokenize().iter().map(|t| t.kind).collect();
-        assert_eq!(tokens, [T![error], T![ident], T![EOF],]);
+        let tokens = lexer.tokenize();
+        assert_eq!(
+            tokens,
+            [
+                Token::error(0..1),
+                Token::ident(1..2, 0, 1),
+                Token::eof(0..0)
+            ]
+        );
     }
 
     #[test]
@@ -610,5 +622,36 @@ mod test {
         let tokens: Vec<_> = lexer.tokenize();
         let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
         assert_eq!(token_kinds, [T![real_literal], T![EOF],]);
+    }
+
+    #[test]
+    fn tokenize_spaced_property_access() {
+        // This should even work with _ between the . and the property name
+        let input = "o. _\n s";
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.tokenize();
+        let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
+        assert_eq!(
+            token_kinds,
+            [
+                T![ident],
+                T![.],
+                T![ws],
+                T![line_continuation],
+                T![ws],
+                T![ident],
+                T![EOF],
+            ]
+        );
+    }
+
+    #[test]
+    fn tokenize_spaced_property_access_invalid() {
+        // Fails on windows with: runtime error: Invalid or unqualified reference
+        let input = "o .s";
+        let mut lexer = Lexer::new(input);
+        let tokens: Vec<_> = lexer.tokenize();
+        let token_kinds = tokens.iter().map(|t| t.kind).collect::<Vec<_>>();
+        assert_eq!(token_kinds, [T![ident], T![ws], T![.], T![ident], T![EOF],]);
     }
 }

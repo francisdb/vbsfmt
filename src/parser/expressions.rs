@@ -2,18 +2,18 @@
 
 use crate::lexer::{Token, TokenKind};
 use crate::parser::ast::{Expr, Lit};
-use crate::parser::{ast, Parser};
+use crate::parser::Parser;
 use crate::T;
 
 impl<'input, I> Parser<'input, I>
 where
     I: Iterator<Item = Token>,
 {
-    pub fn expression_with_prefix(&mut self, first_expression_part: Option<Expr>) -> ast::Expr {
+    pub fn expression_with_prefix(&mut self, first_expression_part: Option<Expr>) -> Expr {
         self.parse_expression_with_prefix(0, first_expression_part)
     }
 
-    pub fn expression(&mut self) -> ast::Expr {
+    pub fn expression(&mut self) -> Expr {
         self.parse_expression(0)
     }
 
@@ -74,7 +74,7 @@ where
 
                 self.consume(op);
                 let rhs = self.parse_expression(right_binding_power);
-                lhs = ast::Expr::InfixOp {
+                lhs = Expr::InfixOp {
                     op,
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
@@ -189,30 +189,9 @@ where
         }
 
         match self.peek() {
-            T![ident] | T![me] | T![property_access] => {
+            T![ident] | T![me] | T![.] => {
                 let full_ident = self.ident_deep();
-                // if !self.at(T!['(']) {
-                //     // plain identifier or sub call
-                //
-                //     ast::Expr::IdentFnSubCall(full_ident)
-                // } else {
-                //     //  function call
-                //     let mut args = Vec::new();
-                //     self.consume(T!['(']);
-                //     while !self.at(T![')']) {
-                //         let arg = self.parse_expression(0);
-                //         args.push(arg);
-                //         if self.at(T![,]) {
-                //             self.consume(T![,]);
-                //         }
-                //     }
-                //     self.consume(T![')']);
-                //     ast::Expr::FnCall {
-                //         fn_name: full_ident,
-                //         args,
-                //     }
-                // }
-                ast::Expr::IdentFnSubCall(full_ident)
+                Expr::IdentFnSubCall(full_ident)
             }
             T!['('] => {
                 // There is no AST node for grouped expressions.
@@ -227,7 +206,7 @@ where
                 let ((), right_binding_power) = op.prefix_binding_power();
                 // NEW!
                 let expr = self.parse_expression(right_binding_power);
-                ast::Expr::PrefixOp {
+                Expr::PrefixOp {
                     op,
                     expr: Box::new(expr),
                 }
@@ -293,7 +272,7 @@ impl Operator for TokenKind {
 mod test {
     use super::*;
     use crate::parser::ast::Expr::Literal;
-    use ast::*;
+    use crate::parser::ast::{FullIdent, IdentBase, IdentPart};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -359,7 +338,7 @@ mod test {
             Expr::InfixOp {
                 op: T![is],
                 lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
-                    base: IdentPart::ident("varValue"),
+                    base: IdentBase::ident("varValue"),
                     property_accesses: Vec::new(),
                 })),
                 rhs: Box::new(Literal(Lit::Nothing)),
@@ -379,7 +358,7 @@ mod test {
                 expr: Box::new(Expr::InfixOp {
                     op: T![is],
                     lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
-                        base: IdentPart::ident("varValue"),
+                        base: IdentBase::ident("varValue"),
                         property_accesses: Vec::new(),
                     })),
                     rhs: Box::new(Literal(Lit::Nothing)),
@@ -398,11 +377,11 @@ mod test {
             Expr::InfixOp {
                 op: T![=],
                 lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
-                    base: IdentPart::ident("varValue"),
+                    base: IdentBase::ident("varValue"),
                     property_accesses: Vec::new(),
                 })),
                 rhs: Box::new(Expr::IdentFnSubCall(FullIdent {
-                    base: IdentPart::ident("varValue2"),
+                    base: IdentBase::ident("varValue2"),
                     property_accesses: Vec::new(),
                 })),
             }
@@ -438,7 +417,7 @@ mod test {
             Expr::InfixOp {
                 op: T![=],
                 lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
-                    base: IdentPart::ident("Me"),
+                    base: IdentBase::me(),
                     property_accesses: vec![IdentPart::ident("Name")],
                 })),
                 rhs: Box::new(Literal(Lit::str("John"))),

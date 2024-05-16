@@ -165,9 +165,9 @@ mod test {
     use crate::parser::ast::ErrorClause::{Goto0, ResumeNext};
     use crate::parser::ast::Stmt::OnError;
     use crate::parser::ast::{
-        Argument, ArgumentType, Case, DoLoopCheck, DoLoopCondition, Expr, FullIdent, IdentPart,
-        Item, Lit, MemberAccess, MemberDefinitions, PropertyType, PropertyVisibility, SetRhs, Stmt,
-        VarRef, Visibility,
+        Argument, ArgumentType, Case, DoLoopCheck, DoLoopCondition, Expr, FullIdent, IdentBase,
+        IdentPart, Item, Lit, MemberAccess, MemberDefinitions, PropertyType, PropertyVisibility,
+        SetRhs, Stmt, VarRef, Visibility,
     };
     use indoc::indoc;
     use pretty_assertions::assert_eq;
@@ -256,10 +256,10 @@ Const a = 1			' some info
         assert_eq!(
             expr,
             Expr::IdentFnSubCall(FullIdent {
-                base: IdentPart {
+                base: IdentBase::Complete(IdentPart {
                     name: "bar".to_string(),
                     array_indices: vec![vec![Expr::ident("x"), Expr::int(2),]],
-                },
+                }),
                 property_accesses: vec![],
             },)
         );
@@ -308,7 +308,7 @@ Const a = 1			' some info
         assert_eq!(
             expr,
             Expr::IdentFnSubCall(FullIdent {
-                base: IdentPart {
+                base: IdentBase::Complete(IdentPart {
                     name: "min".to_string(),
                     array_indices: vec![vec![
                         Expr::InfixOp {
@@ -317,18 +317,18 @@ Const a = 1			' some info
                             rhs: Box::new(Expr::int(4)),
                         },
                         Expr::IdentFnSubCall(FullIdent {
-                            base: IdentPart {
+                            base: IdentBase::Complete(IdentPart {
                                 name: "sin".to_string(),
                                 array_indices: vec![vec![Expr::InfixOp {
                                     op: T![*],
                                     lhs: Box::new(Expr::int(2)),
                                     rhs: Box::new(Expr::ident("PI")),
                                 },],],
-                            },
+                            }),
                             property_accesses: vec![],
                         }),
                     ],],
-                },
+                }),
                 property_accesses: vec![],
             })
         );
@@ -494,13 +494,12 @@ Const a = 1			' some info
                 end: Box::new(Expr::InfixOp {
                     op: T![+],
                     lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
-                        base: IdentPart {
+                        base: IdentBase::Complete(IdentPart {
                             name: "PlayerMode".to_string(),
-                            array_indices: vec![vec![Expr::IdentFnSubCall(FullIdent {
-                                base: IdentPart::ident("currentplayer"),
-                                property_accesses: vec![],
-                            }),]],
-                        },
+                            array_indices: vec![vec![Expr::IdentFnSubCall(FullIdent::ident(
+                                "currentplayer"
+                            ))]],
+                        }),
                         property_accesses: vec![],
                     })),
                     rhs: Box::new(Expr::int(1)),
@@ -508,10 +507,10 @@ Const a = 1			' some info
                 step: None,
                 body: vec![Stmt::Assignment {
                     full_ident: FullIdent {
-                        base: IdentPart {
+                        base: IdentBase::Complete(IdentPart {
                             name: "Blink".to_string(),
                             array_indices: vec![vec![Expr::ident("x"), Expr::int(1)]],
-                        },
+                        }),
                         property_accesses: vec![],
                     },
                     value: Box::new(Expr::int(1)),
@@ -536,7 +535,7 @@ Const a = 1			' some info
                 group: Box::new(Expr::ident("dogs")),
                 body: vec![Stmt::Assignment {
                     full_ident: FullIdent {
-                        base: IdentPart::ident("dog"),
+                        base: IdentBase::ident("dog"),
                         property_accesses: vec![IdentPart::ident("visible")],
                     },
                     value: Box::new(Expr::Literal(Lit::Bool(true))),
@@ -560,14 +559,14 @@ Const a = 1			' some info
                 body: vec![
                     Stmt::Assignment {
                         full_ident: FullIdent {
-                            base: IdentPart::ident("dog"),
+                            base: IdentBase::ident("dog"),
                             property_accesses: vec![IdentPart::ident("volume")],
                         },
                         value: Box::new(Expr::int(0)),
                     },
                     Stmt::Assignment {
                         full_ident: FullIdent {
-                            base: IdentPart::ident("dog"),
+                            base: IdentBase::ident("dog"),
                             property_accesses: vec![IdentPart::ident("visible")],
                         },
                         value: Box::new(Expr::Literal(Lit::Bool(true))),
@@ -664,14 +663,14 @@ Const a = 1			' some info
                 body: vec![
                     Stmt::Assignment {
                         full_ident: FullIdent {
-                            base: IdentPart::ident("RampWireRight"),
+                            base: IdentBase::ident("RampWireRight"),
                             property_accesses: vec![IdentPart::ident("x")],
                         },
                         value: Box::new(Expr::Literal(Lit::Float(0.1))),
                     },
                     Stmt::Assignment {
                         full_ident: FullIdent {
-                            base: IdentPart::ident("Light030"),
+                            base: IdentBase::ident("Light030"),
                             property_accesses: vec![IdentPart::ident("state")],
                         },
                         value: Box::new(Expr::int(0)),
@@ -874,7 +873,7 @@ Const a = 1			' some info
                 }),
                 body: vec![Stmt::Assignment {
                     full_ident: FullIdent {
-                        base: IdentPart::ident("bbs006"),
+                        base: IdentBase::ident("bbs006"),
                         property_accesses: vec![IdentPart::ident("state")],
                     },
                     value: Box::new(Expr::ident("x2")),
@@ -883,14 +882,14 @@ Const a = 1			' some info
                 else_stmt: Some(vec![
                     Stmt::SubCall {
                         fn_name: FullIdent {
-                            base: IdentPart::ident("controller"),
+                            base: IdentBase::ident("controller"),
                             property_accesses: vec![IdentPart::ident("B2SSetData")],
                         },
                         args: vec![Some(Expr::int(50)), Some(Expr::ident("x2")),],
                     },
                     Stmt::SubCall {
                         fn_name: FullIdent {
-                            base: IdentPart::ident("controller"),
+                            base: IdentBase::ident("controller"),
                             property_accesses: vec![IdentPart::ident("B2SSetData")],
                         },
                         args: vec![Some(Expr::int(53)), Some(Expr::ident("x2")),],
@@ -951,10 +950,10 @@ Const a = 1			' some info
                     body: vec![Stmt::Assignment {
                         full_ident: FullIdent::ident("LutValue"),
                         value: Box::new(Expr::IdentFnSubCall(FullIdent {
-                            base: IdentPart {
+                            base: IdentBase::Complete(IdentPart {
                                 name: "CDbl".to_string(),
                                 array_indices: vec![vec![Expr::ident("x")]],
-                            },
+                            }),
                             property_accesses: vec![],
                         })),
                     }],
@@ -1293,17 +1292,17 @@ Const a = 1			' some info
                         lhs: Box::new(Expr::InfixOp {
                             op: T![+],
                             lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
-                                base: IdentPart {
+                                base: IdentBase::Complete(IdentPart {
                                     name: "uBound".to_string(),
                                     array_indices: vec![vec![Expr::ident("aArray")]],
-                                },
+                                }),
                                 property_accesses: vec![],
                             })),
                             rhs: Box::new(Expr::IdentFnSubCall(FullIdent {
-                                base: IdentPart {
+                                base: IdentBase::Complete(IdentPart {
                                     name: "uBound".to_string(),
                                     array_indices: vec![vec![Expr::ident("aInput")]],
-                                },
+                                }),
                                 property_accesses: vec![],
                             })),
                         }),
@@ -1417,10 +1416,10 @@ Const a = 1			' some info
             items,
             vec![Item::Statement(Stmt::Assignment {
                 full_ident: FullIdent {
-                    base: IdentPart {
+                    base: IdentBase::Complete(IdentPart {
                         name: "objectArray".to_string(),
                         array_indices: vec![vec![Expr::ident("i")]],
-                    },
+                    }),
                     property_accesses: vec![IdentPart {
                         name: "image".to_string(),
                         array_indices: vec![],
@@ -1440,13 +1439,13 @@ Const a = 1			' some info
             items,
             vec![Item::Statement(Stmt::Assignment {
                 full_ident: FullIdent {
-                    base: IdentPart::ident("foo"),
+                    base: IdentBase::ident("foo"),
                     property_accesses: vec![IdentPart::ident("a"),],
                 },
                 value: Box::new(Expr::InfixOp {
                     op: T![-],
                     lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
-                        base: IdentPart::ident("foo"),
+                        base: IdentBase::ident("foo"),
                         property_accesses: vec![IdentPart::ident("b")],
                     })),
                     rhs: Box::new(Expr::Literal(Lit::Float(120.5))),
@@ -1619,10 +1618,10 @@ Const a = 1			' some info
                         tests: vec![Expr::int(82),],
                         body: vec![Stmt::Assignment {
                             full_ident: FullIdent {
-                                base: IdentPart {
-                                    name: ".Switch".to_string(),
+                                base: IdentBase::Partial(IdentPart {
+                                    name: "Switch".to_string(),
                                     array_indices: vec![vec![Expr::ident("swCPUDiag")],],
-                                },
+                                }),
                                 property_accesses: vec![],
                             },
                             value: Box::new(Expr::ident("t")),
@@ -1659,7 +1658,7 @@ Const a = 1			' some info
                 }),
                 body: vec![Stmt::SubCall {
                     fn_name: FullIdent {
-                        base: IdentPart::ident("Controller"),
+                        base: IdentBase::ident("Controller"),
                         property_accesses: vec![IdentPart::ident("Run")],
                     },
                     args: vec![],
@@ -1838,24 +1837,24 @@ Const a = 1			' some info
             items,
             vec![Item::Statement(Stmt::With {
                 object: FullIdent {
-                    base: IdentPart::ident("foo"),
+                    base: IdentBase::ident("foo"),
                     property_accesses: vec![IdentPart::ident("obj")],
                 },
                 body: vec![
                     Stmt::Assignment {
-                        full_ident: FullIdent::ident(".bar"),
+                        full_ident: FullIdent::partial("bar"),
                         value: Box::new(Expr::int(1)),
                     },
                     Stmt::Assignment {
                         full_ident: FullIdent {
-                            base: IdentPart::ident(".baz"),
+                            base: IdentBase::partial("baz"),
                             property_accesses: vec![IdentPart::ident("z")],
                         },
                         value: Box::new(Expr::ident("x")),
                     },
                     Stmt::Assignment {
                         full_ident: FullIdent::ident("x"),
-                        value: Box::new(Expr::IdentFnSubCall(FullIdent::ident(".qux"))),
+                        value: Box::new(Expr::IdentFnSubCall(FullIdent::partial("qux"))),
                     },
                 ],
             })]
@@ -1893,10 +1892,10 @@ Const a = 1			' some info
             stmt,
             Stmt::Assignment {
                 full_ident: FullIdent {
-                    base: IdentPart {
+                    base: IdentBase::Complete(IdentPart {
                         name: "foo".to_string(),
                         array_indices: vec![vec![Expr::int(1)], vec![Expr::int(2)]],
-                    },
+                    }),
                     property_accesses: vec![],
                 },
                 value: Box::new(Expr::int(3)),
@@ -1918,26 +1917,26 @@ Const a = 1			' some info
             vec![
                 Item::Statement(Stmt::Call(FullIdent::ident("MyFunction"))),
                 Item::Statement(Stmt::Call(FullIdent {
-                    base: IdentPart {
+                    base: IdentBase::Complete(IdentPart {
                         name: "MyOtherFunction".to_string(),
                         array_indices: vec![vec![Expr::int(1), Expr::int(2)],],
-                    },
+                    }),
                     property_accesses: vec![],
                 })),
                 Item::Statement(Stmt::Call(FullIdent {
-                    base: IdentPart {
+                    base: IdentBase::Complete(IdentPart {
                         name: "mQue3".to_string(),
                         array_indices: vec![
                             vec![Expr::ident("ii")],
                             vec![Expr::IdentFnSubCall(FullIdent {
-                                base: IdentPart {
+                                base: IdentBase::Complete(IdentPart {
                                     name: "mQue2".to_string(),
                                     array_indices: vec![vec![Expr::ident("ii")]],
-                                },
+                                }),
                                 property_accesses: vec![],
                             })],
                         ],
-                    },
+                    }),
                     property_accesses: vec![],
                 })),
             ]
@@ -2066,14 +2065,14 @@ Const a = 1			' some info
                 value: Box::new(Expr::InfixOp {
                     op: T![*],
                     lhs: Box::new(Expr::IdentFnSubCall(FullIdent {
-                        base: IdentPart {
+                        base: IdentBase::Complete(IdentPart {
                             name: "AddScore".to_string(),
                             array_indices: vec![vec![Expr::InfixOp {
                                 op: T![+],
                                 lhs: Box::new(Expr::ident("x")),
                                 rhs: Box::new(Expr::ident("y")),
                             }],],
-                        },
+                        }),
                         property_accesses: vec![],
                     })),
                     rhs: Box::new(Expr::ident("z")),
