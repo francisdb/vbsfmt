@@ -1067,8 +1067,10 @@ where
         // example input: `foo` or `foo(1)` or `foo(1, 2)`
         let name = match self.next() {
             Some(token) => match token.kind {
-                // we might have to add more here, for now we have only encountered keyword `property`
-                T![ident] | T![property] => self.text(&token).to_string(),
+                // We might have to add more here.
+                // For now we have only encountered keywords `property`, `option` and `stop`
+                // Probably the `unused` keyword will also be added here
+                T![ident] | T![property] | T![stop] | T![option] => self.text(&token).to_string(),
                 other => panic!(
                     "Expected identifier after `.` on line {}, column {}, but found `{}`",
                     token.line, token.column, other

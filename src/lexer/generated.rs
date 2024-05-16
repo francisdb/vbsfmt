@@ -228,11 +228,13 @@ pub(super) enum LogosToken {
     KwWith((usize, usize)),
     #[token("xor", word_callback, ignore(ascii_case))]
     KwXor((usize, usize)),
+    #[token("stop", word_callback, ignore(ascii_case))]
+    KwStop((usize, usize)),
     /// Represents reserved keywords but that are not actually in use
     /// https://isvbscriptdead.com/reserved-keywords/
     // As, Byte, Boolean, Double, Integer, Long, Single, Stop, Variant
     #[regex(
-        r"(?i)as|byte|boolean|double|integer|long|single|stop|variant",
+        r"(?i)as|byte|boolean|double|integer|long|single|variant",
         word_callback
     )]
     KwUnused((usize, usize)),
@@ -343,6 +345,7 @@ impl LogosToken {
             KwSingle((line, column)) => (*line, *column),
             KwStatic((line, column)) => (*line, *column),
             KwStep((line, column)) => (*line, *column),
+            KwStop((line, column)) => (*line, *column),
             KwSub((line, column)) => (*line, *column),
             KwThen((line, column)) => (*line, *column),
             KwTo((line, column)) => (*line, *column),
@@ -456,6 +459,7 @@ impl LogosToken {
             KwSingle(_)     => unimplemented!( "KwSingle"),
             KwStatic(_)     => unimplemented!( "KwStatic"),
             KwStep(_)    => T![step],
+            KwStop(_)    => T![stop],
             KwSub(_)     => T![sub],
             KwThen(_)       => T![then],
             KwTo(_)         => T![to],
