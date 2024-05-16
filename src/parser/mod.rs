@@ -930,6 +930,29 @@ Const a = 1			' some info
     }
 
     #[test]
+    fn parse_if_end_id_single_line_no_colons() {
+        let input = r#"if a=1 then DoSomething() end if"#;
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(
+            stmt,
+            Stmt::IfStmt {
+                condition: Box::new(Expr::InfixOp {
+                    op: T![=],
+                    lhs: Box::new(Expr::ident("a")),
+                    rhs: Box::new(Expr::int(1)),
+                }),
+                body: vec![Stmt::SubCall {
+                    fn_name: FullIdent::ident("DoSomething"),
+                    args: vec![],
+                }],
+                elseif_statements: vec![],
+                else_stmt: None,
+            }
+        );
+    }
+
+    #[test]
     fn test_single_line_if_with_many_colons() {
         let input =
             r#"If x < 0 Or Err Then : DoSomething obj : Else : DoSomethingElse obj : End If"#;

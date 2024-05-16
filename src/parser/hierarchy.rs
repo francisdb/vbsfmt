@@ -600,14 +600,8 @@ where
                 if last.array_indices.len() == 1 {
                     let last = last.clone();
                     // from a previous check we know that there is only one array index
-                    part_of_expression = last
-                        .array_indices
-                        .first()
-                        .unwrap()
-                        .clone()
-                        .first()
-                        .unwrap()
-                        .clone();
+                    part_of_expression
+                        .clone_from(last.array_indices.first().unwrap().clone().first().unwrap());
 
                     last_access = FullIdent {
                         base: last_access.base,
@@ -658,7 +652,12 @@ where
         let mut args = Vec::new();
         // TODO first_expression_part might be ignored here!
         // TODO we should be smarter here instead of having all these end conditions
-        while !self.at(T![:]) && !self.at(T![nl]) && !self.at(T![EOF]) && !self.at(T![else]) {
+        while !self.at(T![:])
+            && !self.at(T![nl])
+            && !self.at(T![EOF])
+            && !self.at(T![else])
+            && !self.at(T![end])
+        {
             // Empty arguments are allowed, however working with them is tricky.
             // For now I only found `TypeName(arg) = "Error"` to detect a missing argument.
             if self.at(T![,]) && first_expression_part.is_none() {
