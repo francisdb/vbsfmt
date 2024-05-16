@@ -1231,6 +1231,14 @@ Const a = 1			' some info
     }
 
     #[test]
+    fn parse_const_negative() {
+        let input = "Const x = -1";
+        let mut parser = Parser::new(input);
+        let stmt = parser.statement(true);
+        assert_eq!(stmt, Stmt::const_("x", Lit::int(-1)));
+    }
+
+    #[test]
     fn parse_const_multi() {
         let input = r#"const x = 42, txt = "Hello""#;
         let mut parser = Parser::new(input);
