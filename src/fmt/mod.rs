@@ -270,7 +270,7 @@ const INDENT_STARTERS: [&str; 21] = [
 
 const INDENT_ENDERS: [&str; 7] = ["Else", "ElseIf ", "End ", "Loop", "Next", "Wend ", "Case "];
 
-pub(crate) struct FormatOptions {
+pub struct FormatOptions {
     pub(crate) capitalize_keywords: bool,
     pub(crate) remove_chained_code: bool,
     pub(crate) fix_indentation: bool,
@@ -290,7 +290,7 @@ impl Default for FormatOptions {
     }
 }
 
-pub(crate) fn fmt(input: &str, options: FormatOptions) -> String {
+pub fn fmt(input: &str, options: FormatOptions) -> String {
     let mut data = input.to_string();
 
     // Uniformize line endings to LF
@@ -1076,7 +1076,7 @@ mod tests {
                 End If
             End If
             "#}
-        .replace('\n', "\r\n");
+            .replace('\n', "\r\n");
         let actual = fmt(&input, FormatOptions::default());
         assert_eq!(expected, actual);
     }

@@ -72,8 +72,8 @@ fn fmt(sub_matches: &ArgMatches) {
     // TODO handle non-utf8 files
     let input = std::fs::read_to_string(input_path).unwrap();
 
-    let options = fmt::FormatOptions::default();
-    let output = fmt::fmt(&input, options);
+    let options = crate::fmt::FormatOptions::default();
+    let output = crate::fmt::fmt(&input, options);
 
     let output_path = match output_file {
         Some(output) => {
