@@ -1,7 +1,7 @@
-use std::ops::Range;
-
-use indoc::indoc;
-use pretty_assertions::assert_eq;
+// use std::ops::Range;
+//
+// use indoc::indoc;
+// use pretty_assertions::assert_eq;
 
 /// It tries to parse all `.vbs` files going one level lower from the root of the project.
 /// We suggest to make sure you have https://github.com/jsm174/vpx-standalone-scripts cloned
