@@ -27,8 +27,8 @@ for repo in "${repos[@]}"; do
     cd "$repo_dir"
     git sparse-checkout set --no-cone "$sub_dir"
     git checkout
-    rm -rf "$repo_dir/.git"
     cd ..
+    rm -rf "$repo_dir/.git"
   else
     if [ -d "$dir" ]; then
       echo "Updating $dir"
