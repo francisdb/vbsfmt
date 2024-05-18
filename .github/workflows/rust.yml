@@ -34,9 +34,7 @@ jobs:
       - name: Build
         run: cargo build --verbose
       - name: Populate testscripts
-        run: |
-          ./testscripts/populate.sh
-          find ./testscripts
+        run: ./testscripts/populate.sh
         if: runner.os == 'Linux'
       - name: Run tests
         run: cargo test --verbose -- --nocapture
