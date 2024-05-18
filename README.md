@@ -16,6 +16,20 @@ through `System Settings / Privacy & Security / Allow Anyway button` or on the c
 xattr -d com.apple.quarantine vbsfmt
 ```
 
+## Running the integration tests
+
+Make sure you populate the `testsctipts` folder, feel free to add more vbs files to the folder.
+
+```bash
+./testsctipts/populate.sh
+```
+
+Run the tests. They will also be included in the default `cargo test` run.
+
+```bash
+RUST_BACKTRACE=1 cargo test -- --nocapture try_formatting_all_vbs_files
+```
+
 ## Attributions
 
 This started as a port of https://gitlab.com/PDStig/vpin-workshop-code-formatter
