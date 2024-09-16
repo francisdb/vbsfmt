@@ -13,4 +13,4 @@ yansi = "1.0.1"
 
 [dev-dependencies]
 trim-margin = "0.1.0"
-pretty_assertions = "1.4.0"
+pretty_assertions = "1.4.1"
