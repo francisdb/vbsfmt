@@ -609,8 +609,7 @@ fn remove_chained_code(vbscript_code: &str) -> String {
                     split.reverse();
                     split.iter().for_each(|n_line| {
                         if !stack.is_empty()
-                            && stack[stack.len() - 1].to_ascii_lowercase()
-                                == n_line.trim().to_ascii_lowercase()
+                            && stack[stack.len() - 1].eq_ignore_ascii_case(n_line.trim())
                         {
                             stack.pop();
                         }
